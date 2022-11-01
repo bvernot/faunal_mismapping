@@ -1,4 +1,6 @@
-# faunal_mismapping
+# Faunal mismapping Speedrun Project
+
+Details in the Google Doc file.
 
 Project directory on the servers:  
 /mnt/expressions/benjamin_vernot/faunal_mismapping
