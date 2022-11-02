@@ -9,6 +9,7 @@ import sys
 import os.path
 from collections import Counter
 from collections import defaultdict
+from collections import namedtuple
 
 import pysam
 import pandas as pd
@@ -51,10 +52,40 @@ def get_ref_base(col):
     for read_pos, ref_pos, ref_base in tuples:
         if ref_pos == col.reference_pos:
             return ref_base.upper()
+        pass
+    pass
 
+
+site_results = dict()
+def process_site(chrom, pos, sites, ref, bases):
+    a1, a2, category = sites[(chrom, pos)]
+
+    if ref not in (a1, a2):
+        print('Skipping site because ref not in a1/a2!', ref, a1, a2)
+        return
+
+    if category not in site_results:
+        site_results[category] = {'nsites' : 0, 'nder' : 0}
+        pass
+
+    # print(bases, ref)
+    bases = [b for b in bases if b in (a1, a2)]
+
+    ref_match = sum(b == ref for b in bases)
+    ref_nonmatch = sum(b != ref for b in bases)
+    # print(bases, ref, ref_match, ref_nonmatch)
+
+    site_results[category]["nsites"] += ref_match + ref_nonmatch
+    site_results[category]["nder"] += ref_match
+
+    # print(site_results)
+    
+    return
+    
+        
 
 def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit):
-    """Sample bases in a given region of the genome based on the pileupx
+    """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
     calls = []
@@ -70,15 +101,18 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
 
         # print(col.reference_name, col.reference_pos)
         # print(sites)
-        
+
+        ###
+        ## only process the sites that we requested
         if sites is not None and (col.reference_name, col.reference_pos + 1) not in sites: continue
+
         
         bases = col.get_query_sequences(add_indels=True)
 
         # filter out sites with no reads and sites with indels
         if bases and "*" not in bases and all(len(i) == 1 for i in bases):
             bases = [b.upper() for b in col.get_query_sequences()
-                     if b and b.upper() in "ACGT"]
+                     if b in "ACGTacgt"]
 
             #print('~~~~~~~~~~')
             #print(bases)
@@ -95,6 +129,15 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
             
 
             if len(bases) >= mincov:
+
+                ## for calculating stats
+                process_site(col.reference_name,
+                             col.reference_pos + 1,
+                             sites,
+                             get_ref_base(col),
+                             bases)
+                
+                ## for outputing a file with every site listed
                 calls.append((
                     col.reference_name,
                     col.reference_pos + 1,
@@ -117,35 +160,38 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
     return
 
 
-def write_vcf(calls, output, sample_name):
-    filename = output + ".vcf"
-    new_file = not os.path.isfile(filename)
-    with open(filename, "w" if new_file else "a") as vcf:
-        if new_file:
-            print(
-                "##fileformat=VCFv4.1\n"
-                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
-                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Number of high-quality bases\">\n"
-                "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}".
-                format(sample=sample_name), file=vcf
-            )
-        for i in calls.itertuples():
-            alt, gt = (".", 0) if i.ref == i.call else (i.call, 1)
-            print(f"{i.chrom}\t{i.pos}\t.\t{i.ref}\t{alt}\t.\t.\t.\tGT:DP\t{gt}:{i.coverage}", file=vcf)
+# def write_vcf(calls, output, sample_name):
+#     filename = output + ".vcf"
+#     new_file = not os.path.isfile(filename)
+#     with open(filename, "w" if new_file else "a") as vcf:
+#         if new_file:
+#             print(
+#                 "##fileformat=VCFv4.1\n"
+#                 "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+#                 "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Number of high-quality bases\">\n"
+#                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}".
+#                 format(sample=sample_name), file=vcf
+#             )
+#         for i in calls.itertuples():
+#             alt, gt = (".", 0) if i.ref == i.call else (i.call, 1)
+#             print(f"{i.chrom}\t{i.pos}\t.\t{i.ref}\t{alt}\t.\t.\t.\tGT:DP\t{gt}:{i.coverage}", file=vcf)
 
 
-def write_pileup_og(pileups, output):
-    filename = output + ".txt"
-    new_file = not os.path.isfile(filename)
-    with open(filename, "w" if new_file else "a") as tsv:
-        if new_file: print("chrom\tpos\tref\tpileup\tA\tC\tG\tT", file=tsv)
-        for i in pileups.itertuples():
-            counts = Counter(i.call)
-            counts_str = '\t'.join(str(counts[i]) for i in 'ACGT')
-            print(f"{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}", file=tsv)
+# def write_pileup_og(pileups, output):
+#     filename = output + ".txt"
+#     new_file = not os.path.isfile(filename)
+#     with open(filename, "w" if new_file else "a") as tsv:
+#         if new_file: print("chrom\tpos\tref\tpileup\tA\tC\tG\tT", file=tsv)
+#         for i in pileups.itertuples():
+#             counts = Counter(i.call)
+#             counts_str = '\t'.join(str(counts[i]) for i in 'ACGT')
+#             print(f"{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}", file=tsv)
 
-def write_pileup(pileups, times_called, output, new_file, records_dict):
-    if new_file and times_called == 0: print("chrom\tpos\tref\tpileup\tA\tC\tG\tT\tmatch", file=output)
+def write_pileup(pileups, times_called, output, new_file, records_dict, report = True):
+
+    if not report: return
+    
+    if new_file and times_called == 0: print("SITES\tchrom\tpos\tref\tpileup\tA\tC\tG\tT\tmatch", file=output)
     for i in pileups.itertuples():
         counts = Counter(i.call)
         counts_str = '\t'.join(str(counts[i]) for i in 'ACGT')
@@ -155,7 +201,7 @@ def write_pileup(pileups, times_called, output, new_file, records_dict):
             match = 'ref_mismatch'
             pass
         records_dict[match] += 1
-        print(f"{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}\t{match}", file=output)
+        print(f"SITES\t{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}\t{match}", file=output)
 
 
 def check_range(value):
@@ -169,17 +215,27 @@ def check_range(value):
             f"needs to be between 0.5 and 1.0 (value given: {value}).")
     return value
 
+
 def read_sites(sites_file, add_chr):
-    sites = set()
+    sites = dict()
     with open(sites_file, "rt") as sf:
-        for line in sf:
+        for i, line in enumerate(sf):
             line = line.rstrip().split()
             chrom,pos = line[0:2]
+            if i == 0 and not pos.isnumeric():
+                print('Keeping header:', line, file=sys.stderr)
+                sites['category_header'] = tuple(line[4:])
+                continue
+            
+            a1_der, a2_anc = line[2:4]
+
+            category = tuple(line[4:])
+            
             if add_chr:
                 chrom = 'chr' + chrom
                 pass
             pos = int(pos)
-            sites.add((chrom,pos))
+            sites[(chrom,pos)] = (a1_der, a2_anc, category)
             pass
         pass
     return sites
@@ -190,7 +246,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Call alleles from a BAM file using various criteria")
     parser.add_argument("--bam", help="BAM file to sample from", required=True)
     parser.add_argument("--chrom", help="Chromosome to sample from")
-    parser.add_argument("--strategy", help="How to 'genotype'?", choices=["random", "majority", "pileup"], required=True)
+    parser.add_argument("--strategy", help="How to 'genotype'?", choices=["random", "majority", "pileup", "none"], required=True)
     parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
     parser.add_argument("--seed", help="Set seed for random allele sampling [random]")
     parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
@@ -228,7 +284,7 @@ if __name__ == "__main__":
 
     if args.strategy == "pileup":
         call_fun = lambda x: "".join(x)
-        out_fun = functools.partial(write_pileup, output=output, new_file=new_file)
+        out_fun = functools.partial(write_pileup, output=output, new_file=new_file, records_dict=records_dict)
 
     elif args.strategy == "random":
         if args.seed:
@@ -238,11 +294,15 @@ if __name__ == "__main__":
         #                            sample_name=args.sample_name)
         out_fun = functools.partial(write_pileup, output=output, new_file=new_file, records_dict=records_dict)
 
-    elif args.strategy == "majority":
-        call_fun = functools.partial(majority, prop=args.proportion)
-        out_fun = functools.partial(write_vcf, output=args.output,
-                                    sample_name=args.sample_name)
+    elif args.strategy == "none":
+        call_fun = lambda x: "".join(x)
+        out_fun = functools.partial(write_pileup, output=output, new_file=new_file, records_dict=records_dict, report=False)
         pass
+
+    # elif args.strategy == "majority":
+    #     call_fun = functools.partial(majority, prop=args.proportion)
+    #     out_fun = functools.partial(write_vcf, output=args.output,
+    #                                 sample_name=args.sample_name)
 
     if args.sites is not None:
         sites = read_sites(args.sites, args.add_chr)
@@ -254,4 +314,29 @@ if __name__ == "__main__":
                args.minbq, args.minmq, args.minlen,
                args.chrom, sites, args.flush, args.limit)
     
-    print(records_dict, file=sys.stderr)
+    # print(records_dict, file=sys.stderr)
+
+    # print(site_results)
+
+    nsites = 0
+    nder = 0
+    if 'category_header' in sites:
+        print('CATSITES', '\t'.join(sites['category_header']), 'nder', 'nsites', sep='\t')
+        pass
+
+    
+    all_cats = sorted(site_results.keys())
+    #    all_cats = sorted(site_results.keys(), key = lambda x : tuple(x[0], int(x[1]), x[2] if int(x[2]) < 14 else '14+'))
+
+    for category in all_cats:
+
+        nsites += site_results[category]['nsites']
+        nder += site_results[category]['nder']
+        
+        print('CATSITES', '\t'.join(category), site_results[category]['nder'], site_results[category]['nsites'], sep='\t')
+        pass
+
+    print('ALLSITES', 'nder', 'nsites', 'fraction_derived', sep='\t')
+    print('ALLSITES', nder, nsites, nder/nsites, sep='\t')
+
+    pass
