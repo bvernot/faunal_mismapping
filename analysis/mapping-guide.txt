@@ -1,0 +1,108 @@
+The mapping (aka alignment) of sequences is done using "bwa aln" (burrow's-wheeler alignment).
+It takes sequences (for example 1mil reads in a fasta-file, aka query) and matches them onto other sequences (for example a big fasta-file of a genome, aka target).
+It then outputs, for example, if a query sequence matches onto the target somewhere and if it does, how well, where, etc.
+The program I used mostly was "bwa bam2bam", which is the same as "bwa aln" but takes bam-files as in- and outputs, which makes it easier to use.
+"bwa bam2bam" was written here at the MPI, or at least modified from I would guess "bwa aln", which is why you will not find any information on that online. 
+There are, from what I have seen, some differences in the results of "bwa bam2bam" compared to "bwa aln" but it's not that significant.
+
+!! CAREFUL !! "bwa bam2bam" only outputs reads that mapped while "bwa aln" outputs all sequences, even if they don't fit onto the target (I think, but be aware of that).
+
+There are also differences in how you would use "bwa aln/bam2bam", depending on if the query is ancient DNA or not.
+In the case of "normal" DNA, I have used the standard settings of "bwa aln/bam2bam", but for ancient DNA Ben gave me settings to use, to allow for example more mismatches.
+
+These algorithms can either be run on the number crunchers (for example bionc13) or on the cluster.
+
+Here are some examples to show how it works:
+
+
+>> INDEX TARGETS <<
+Before you can do any mappings, you have to index the target (for example the genome) first.
+This creates a bunch of files that "bwa aln/bam2bam" needs to run.
+Just save your target fasta somewhere and run this command, preferrably in tmux because this might take a while (max a few hours in my experience).
+
+    targetSequence="/mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna"
+
+    bwa index $targetSequence
+
+That's it!
+
+
+>> MAP BAM ON NCXX FOR ANCIENT DNA  <<
+Here, I mapped simulated, ancient bear DNA (as bam) onto the cow genome (as fna), which outputs the alignment (as bam)
+
+    $refGenome="/mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna"     # this is the target
+    $outputBam="/mnt/expressions/robin_warner/bear-mapping/1_bams/cow.bam"          # this is the output bam
+    $queryBam="/mnt/expressions/benjamin_vernot/soil_capture_2017/ancient_animal_dna/fred_fake_seqdata/ursus_arctos_top100scaffolds.lendistr.vind.n1000/ursus_arctos_reads_nonudg.bam"
+    #^# this is the query bam, the simulated ancient bear DNA
+
+    -t 25   # this means that 25 cores will be used
+
+    bwa bam2bam --only-aligned -g $refGenome -n 0.01 -o 2 -l 16500 -t 25 -f $outputBam $queryBam
+
+
+>> WORKING WITH BAM FILES <<
+A "bam" file is a binary file format (basically meaning it consists of zeros and ones, compared to ASCII symbols), which has one main advantage and disadvantage.
+The advantage is, that it is much smaller (about 1/3) compared to the non-binary format "sam".
+The disadvantage is, that it cannot be displayed, for example with "less file.bam", without converting it first.
+Conversion is super easy though using "samtools view"!
+The easiest way would be to just ..
+
+    samtools view file.bam > file.sam
+
+This kind of destroys the purpose of saving disk space, because the sam-file is now large on the disk.
+What you want to do is pipe the conversion into other programs, for example less or head to look at it.
+This would show the contents of the bam-file, without any line breaks (due to the flag -S).
+Without -S, bam-files can be hard to read.
+
+    samtools view file.bam | less -S
+
+You can also stream this data for analysis into python by using subprocesses but maybe ask Kevin about this because I did this in different (worse) way than he did.
+
+
+>> USING BWA ALN ON NCXX WITH FASTA AS INPUT <<
+When you don't have a bam-file as the input, you have to use "bwa aln", where you need one extra step.
+
+In this example, I mapped sequences extracted directly from one species (for example sheep) to another species (for example cow).
+Because these sequences haven't been mapped to anything yet, I have them as a fasta-file.
+And because they are "perfect" DNA, I will use the standard settings, without -l 16500 etc.
+
+The main step (the mapping itself) is very similar to bam2bam, because it's the same algorithm under the hood.
+The only difference to the previous example is, that I also save a log-file, which is basically the stuff the program would print on screen, but saved to a file.
+I did this because I often do many mappings in a loop and maybe somewhere something could go wrong and I can then check the logs.
+You can do the same with bam2bam or remove it, it doesn't really matter and I just think it's neat! :)
+
+Another problem is, that there is the -t flag, with which bwa can use multiple threads, but in my case this didn't really work, you have to see if you can get this working again.
+What I did was to just run many single-threaded mappings in parallel using "&".
+
+    genomeFilename="/mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna"
+    queryFilename="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/2_mapping-fastas/sheep_mapping-fasta.fna"
+    saiOutput="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/3_mapping-sais/sheep-to-cow.sai"
+    saiLog="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/3_mapping-sais/0_logs/sheep-to-cow.log"
+
+    bwa aln $genomeFilename $queryFilename 1> $saiOutput 2> $saiLog
+
+Now, the output is a .sai-file, which is also a binary file and has to be converted to a bam-file
+
+    genomeFilename="/mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna"
+    saiFilename="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/3_mapping-sais/sheep-to-cow.sai"
+    queryFilename="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/2_mapping-fastas/sheep_mapping-fasta.fna"
+    bamLog="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/4_mapping-bams/0_logs/sheep-to-cow.log"
+    bamOutput="/mnt/expressions/robin_warner/final-snp-capture/0_vcf-snps/1_results/4_mapping-bams/sheep-to-cow.bam"
+
+    bwa samse $genomeFilename $saiFilename $queryFilename 2> $bamLog | samtools view -Sb > $bamOutput
+
+
+>> USING BWA BAM2BAM ON THE CLUSTER <<
+
+    $jobName="example_mapping"
+
+
+/mnt/solexa/bin/mappr-cli -z $jobName -a -g <genome> -f <obam> <input_bam> -n 0.01 -o 2 -l 16500 --only-aligned
+<genome> is the path to the bwa index base
+.. I think that's the same as bam2bam, right?
+If you want to check the status of jobs, you can look here: http://mappr.eva.mpg.de/
+
+/mnt/solexa/bin/mappr-cli -z robin_test -a -g /mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna -f c_to_cow.bam to_sheep.bam -n 0.01 -o 2 -l 16500 --only-aligned
+
+
+tmux
