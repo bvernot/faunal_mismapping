@@ -31,14 +31,15 @@ time python3 /mnt/expressions/benjamin_vernot/soil_capture_2017/ancient_animal_d
 
 ### Calculating faunal mismapping proportions
 
-The script is currently in a really bad place, but I think you *can* use it if you really want to:
+This is still a work in progress, but to get a basic report run this command and look at the last two lines of the output.
 
 ```
 time python3 bin/mismapping.py \
-     --bam $bam \
-     --strategy random \
-     --sites /mnt/expressions/benjamin_vernot/pendant_2022/sites.2.txt \
-     --flush 1000000 > $outfile
+     --bam data/test_bams/A34692.uniq.L35MQ25.bam \
+     --strategy none \
+     --sites /mnt/expressions/benjamin_vernot/faunal_mismapping/data/sites/hominin_derived_sites.txt \
+      > $outfile
+     
 ```
 
 This just generates a table of alleles at each site, and doesn't actually do the calculations we want to do - I plan to add that. Currently I then merge that data w/ the allele data found here:
