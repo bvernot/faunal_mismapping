@@ -1,26 +1,25 @@
 import pysam
 import pandas as pd
+import sys
 
-filename = "/mnt/expressions/benjamin_vernot/faunal_mismapping/data/simulated-reads/sorted_test.bam"
+_, bamfile, tsvfile = sys.argv
 
 data = {
-    "score": [],
-    "len": []
+    "score": [10],
+    "len": [20],
+    "mismatch": [30]
 }
 
-bam = pysam.AlignmentFile(filename, "rb")
+bam = pysam.AlignmentFile(bamfile, "rb")
 for index, read in enumerate(bam.fetch()):
     if index >= 10:
         break
     else:
         data["score"].append(read.mapping_quality)
         data["len"].append(read.infer_read_length())
-        print(read.get_forward_qualities())
+        data["mismatch"].append(read.get_tag("NM"))
 
+# bam.close()
 
 df = pd.DataFrame.from_dict(data)
-print(df)
-
-
-
-bam.close()
+df.to_csv(tsvfile, sep="\t", index=False)
