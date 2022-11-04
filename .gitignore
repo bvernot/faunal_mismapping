@@ -1,2 +1,3 @@
     # ignore dat files
     data/
+.Rproj.user
