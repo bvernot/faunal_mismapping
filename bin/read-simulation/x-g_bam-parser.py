@@ -16,7 +16,7 @@ for index, read in enumerate(bam.fetch()):
     data["len"].append(read.infer_read_length())
     data["mismatch"].append(read.get_tag("NM"))
 
-# bam.close()
+bam.close()
 
 df = pd.DataFrame.from_dict(data)
 df.to_csv(tsvfile, sep="\t", index=False)
