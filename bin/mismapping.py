@@ -232,7 +232,7 @@ def read_sites(sites_file, add_chr):
             category = tuple(line[4:])
             
             if add_chr:
-                chrom = 'chr' + chrom
+                chrom = 'human_chr' + chrom
                 pass
             pos = int(pos)
             sites[(chrom,pos)] = (a1_der, a2_anc, category)
