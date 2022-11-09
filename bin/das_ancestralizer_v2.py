@@ -11,7 +11,7 @@ import argparse
 import random
 
 ## Set up the parser
-parser = argparse.ArgumentParser(prog='ancestralize Eigenstrat', description='revert a set proportion of an individual humans's called SNPs to their ancestral state')
+parser = argparse.ArgumentParser(prog='ancestralize Eigenstrat', description='revert a set proportion of SNPs in an individual to their ancestral state')
 parser._optionals.title = "Required Arguments"
 optional_args=parser.add_argument_group('Optional Arguments')
 parser.add_argument('--input', "-in", help='input file')
