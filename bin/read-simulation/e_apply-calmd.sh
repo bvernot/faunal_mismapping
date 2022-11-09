@@ -10,14 +10,13 @@ for speciesDir in "$bamBaseDir"/0_ref/*; do
         species=${speciesDir##*_}
         withNumber=${speciesDir##*/}
 
-        echo $species
-
         ## REF ##
         bamFile=$bamBaseDir"/0_ref/"$withNumber"/"$species"-to-human_REF.bam"
         bamResult=$resultsBaseDir"/0_ref/"$withNumber"/"$species"-to-human_REF-calmd.bam"
+        log=$resultsBaseDir"/0_ref/"$withNumber"/"$species"-to-human_REF-calmd.log"
         mkdir -p $resultsBaseDir"/0_ref/"$withNumber
         
-        samtools calmd -b --reference $genomeDir $bamFile 1> $bamResult 2> log &
+        samtools calmd -b --reference $genomeDir $bamFile > $bamResult 2> $log &
 
 
         ## THIRD ##
@@ -27,7 +26,7 @@ for speciesDir in "$bamBaseDir"/0_ref/*; do
         mkdir -p $resultsBaseDir"/1_third/"$withNumber
 
         samtools calmd -b --reference $genomeDir $bamFile 1> $bamResult 2> $log &
-        
+
 
         ## N ##
         bamFile=$bamBaseDir"/2_N/"$withNumber"/"$species"-to-human_N.bam"

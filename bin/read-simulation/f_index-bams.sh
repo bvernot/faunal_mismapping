@@ -11,15 +11,15 @@ for speciesDir in "$bamBaseDir"/0_ref/*; do
 
         ## REF ##
         bamFile=$bamBaseDir"/0_ref/"$withNumber"/"$species"-to-human_REF-calmd.bam"
-        samtools index $bamFile
+        samtools index $bamFile &
 
         ## THIRD ##
         bamFile=$bamBaseDir"/1_third/"$withNumber"/"$species"-to-human_THIRD-calmd.bam"
-        samtools index $bamFile
+        samtools index $bamFile &
         
         ## N ##
         bamFile=$bamBaseDir"/2_N/"$withNumber"/"$species"-to-human_N-calmd.bam"
-        samtools index $bamFile
+        samtools index $bamFile &
     fi
 done
 wait
