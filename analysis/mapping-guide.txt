@@ -103,6 +103,3 @@ Now, the output is a .sai-file, which is also a binary file and has to be conver
 If you want to check the status of jobs, you can look here: http://mappr.eva.mpg.de/
 
 /mnt/solexa/bin/mappr-cli -z robin_test -a -g /mnt/expressions/robin_warner/robin_genomes/cow/cow_genome.fna -f c_to_cow.bam to_sheep.bam -n 0.01 -o 2 -l 16500 --only-aligned
-
-
-tmux
