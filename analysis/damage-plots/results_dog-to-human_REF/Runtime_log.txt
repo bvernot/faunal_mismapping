@@ -1,0 +1,12 @@
+2022-11-23 14:40:23,116	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/2_dog/dog-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 14:53:31,452	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/2_dog/dog-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 14:54:03,975	DEBUG	main: BAM read in 36.246413 seconds
+2022-11-23 14:54:44,702	INFO	mapdamage.rscript: Performing Bayesian estimates
+2022-11-23 14:54:44,702	DEBUG	mapdamage.rscript: Call: Rscript /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/runGeneral.R --args 30 10000 10 50000 0 0 1 1 0 0 1 12 results_dog-to-human_REF/ /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/ results_dog-to-human_REF/Stats_out 0 0 0 results_dog-to-human_REF/acgt_ratio.csv 0 0
+2022-11-23 15:10:28,852	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/2_dog/dog-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 15:10:47,354	DEBUG	main: BAM read in 21.041576 seconds
+2022-11-23 15:11:14,218	INFO	mapdamage.rscript: Performing Bayesian estimates
+2022-11-23 15:11:14,218	DEBUG	mapdamage.rscript: Call: Rscript /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/runGeneral.R --args 30 10000 10 50000 0 0 1 1 0 0 1 12 results_dog-to-human_REF/ /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/ results_dog-to-human_REF/Stats_out 0 0 0 results_dog-to-human_REF/acgt_ratio.csv 0 0
+2022-11-23 15:15:38,459	DEBUG	mapdamage.rscript: Bayesian estimates completed in 264.241169 seconds
+2022-11-23 15:15:38,460	INFO	main: Successful run
+2022-11-23 15:15:38,565	DEBUG	main: Run completed in 312.251999 seconds
