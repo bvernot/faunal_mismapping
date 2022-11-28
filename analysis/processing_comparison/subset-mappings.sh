@@ -5,7 +5,7 @@
 
 datadirectory="/mnt/expressions/benjamin_vernot/faunal_mismapping/data/processing_comparisons"
 
-for bams in  0_human-to-human_REF-to-human_THIRD 2_dog-to-human_REF-to-human_THIRD dog-to-human_THIRD human-to-human_THIRD; do
+for bams in dog-to-human_REF human-to-human_REF 0_human-to-human_REF-to-human_THIRD 2_dog-to-human_REF-to-human_THIRD dog-to-human_THIRD human-to-human_THIRD; do
     inputbam=$datadirectory/$bams".bam"
     # ls $inputbam
     output=$datadirectory"/"$bams".subset.bam"
