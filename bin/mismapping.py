@@ -57,26 +57,47 @@ def get_ref_base(col):
 
 
 site_results = dict()
-def process_site(chrom, pos, sites, ref, bases):
+
+def process_site(chrom, pos, sites, ref, bases, names, tag_text):
     a1, a2, category = sites[(chrom, pos)]
+
+    a34 = list('ACGT')
+    a34.remove(a1)
+    a34.remove(a2)
+    a3, a4 = a34
+
+    ### report for all sites
+
+    for i in range(len(bases)):            
+        print('READ', chrom, pos,
+              names[i], bases[i], ref, a1, a2,
+              'PASS' if ref in (a1, a2) else 'FAIL',
+              'PASS' if bases[i] in (a1, a2) else 'FAIL',
+              '\t'.join(category), '\t'.join(tag_text), sep='\t')
+        pass
+    
+    ### aggregate report
 
     if ref not in (a1, a2):
         print('Skipping site because ref not in a1/a2!', ref, a1, a2)
         return
 
     if category not in site_results:
-        site_results[category] = {'nsites' : 0, 'nder' : 0}
+        site_results[category] = {'nsites' : 0, 'nder' : 0, 'n_a34' : 0}
         pass
 
     # print(bases, ref)
+    bases_a34 = [b for b in bases if b in (a3, a4)]
     bases = [b for b in bases if b in (a1, a2)]
 
     ref_match = sum(b == ref for b in bases)
     ref_nonmatch = sum(b != ref for b in bases)
+    a34_match = len(bases_a34)
     # print(bases, ref, ref_match, ref_nonmatch)
 
     site_results[category]["nsites"] += ref_match + ref_nonmatch
     site_results[category]["nder"] += ref_match
+    site_results[category]["n_a34"] += a34_match
 
     # print(site_results)
     
@@ -84,7 +105,7 @@ def process_site(chrom, pos, sites, ref, bases):
     
         
 
-def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit):
+def call_bases(call_fun, out_fun, bam, minbq, minmq, minlen, chrom, sites, flush_interval, limit, tag_text):
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -111,15 +132,25 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
 
         # filter out sites with no reads and sites with indels
         if bases and "*" not in bases and all(len(i) == 1 for i in bases):
-            bases = [b.upper() for b in col.get_query_sequences()
-                     if b in "ACGTacgt"]
+
+            ## this starts to fall apart if it's too complex..
+            ## really should modify this so it keeps track of the indices that pass our various filters (len, ACGT, etc)
+            
+            bases = [b.upper() for b in col.get_query_sequences()]
+            names = col.get_query_names()
+
+            bases = [bases[i] for i,b in enumerate(bases) if b in "ACGT"]
+            names = [names[i] for i,b in enumerate(bases) if b in "ACGT"]
+
 
             #print('~~~~~~~~~~')
             #print(bases)
             if minlen is not None:
                 read_lens = [len(pileupread.alignment.get_reference_positions(full_length=True)) for pileupread in col.pileups]
                 bases = [bases[i] for i,l in enumerate(read_lens) if l >= minlen]
+                names = [names[i] for i,l in enumerate(read_lens) if l >= minlen]
                 pass
+
             #print(read_lens)
             #print(bases)
 
@@ -128,24 +159,23 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
             # print(''.join(x[2] if x[2] is not None else '-' for x in col.pileups[0].alignment.get_aligned_pairs(with_seq=True)))
             
 
-            if len(bases) >= mincov:
-
-                ## for calculating stats
-                process_site(col.reference_name,
-                             col.reference_pos + 1,
-                             sites,
-                             get_ref_base(col),
-                             bases)
-                
-                ## for outputing a file with every site listed
-                calls.append((
-                    col.reference_name,
-                    col.reference_pos + 1,
-                    get_ref_base(col),
-                    len(bases),
-                    call_fun(bases)
-                ))
-                pass
+            ## for calculating stats
+            process_site(col.reference_name,
+                         col.reference_pos + 1,
+                         sites,
+                         get_ref_base(col),
+                         bases,
+                         names, tag_text)
+            
+            # ## for outputing a file with every site listed
+            # calls.append((
+            #     col.reference_name,
+            #     col.reference_pos + 1,
+            #     get_ref_base(col),
+            #     len(bases),
+            #     call_fun(bases)
+            # ))
+            # pass
             pass
 
         if i-last_flush > flush_interval:
@@ -249,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--strategy", help="How to 'genotype'?", choices=["random", "majority", "pileup", "none"], required=True)
     parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
     parser.add_argument("--seed", help="Set seed for random allele sampling [random]")
-    parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
+    #parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
     parser.add_argument("--minbq", help="Minimum base quality", type=int, default=13)
     parser.add_argument("--minmq", help="Minimum read mapping quality", type=int, default=0)
     parser.add_argument("--minlen", help="Minimum read length", type=int, default=35)
@@ -259,8 +289,13 @@ if __name__ == "__main__":
     parser.add_argument("--sites", help="Restrict output to this list of sites (chrom, 1 based pos)")
     parser.add_argument("--flush", help="Print to file every N bases", type=int, default=100000)
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
+    parser.add_argument("--tags", help="Add columns to output (format: colname=coltext)", default=[], nargs="+")
 
     args = parser.parse_args()
+
+    ## parse tags
+    tag_header = [x.split('=')[0] for x in args.tags]
+    tag_text = [x.split('=')[1] for x in args.tags]
 
     # if args.strategy != "pileup" and not args.sample_name:
     #     parser.error(f"Sample name has to be specified when writing a VCF file")
@@ -309,10 +344,24 @@ if __name__ == "__main__":
     else:
         sites = None
         pass
+
+    if 'category_header' in sites:
+        category_header_str = '\t'.join(sites['category_header'])
+    else:
+        random_cat = next(iter(sites.values()))[2]
+        category_header_str = '\t'.join('cat' + str(i) for i in range(len(random_cat)))
+        pass
+
     
-    call_bases(call_fun, out_fun, bam, args.mincov,
+    print('READ', 'chrom', 'pos',
+          'name', 'base', 'ref', 'a1', 'a2',
+          'ref_in_a1a2', 'base_in_a1a2',
+          category_header_str, '\t'.join(tag_header), sep='\t')
+
+    
+    call_bases(call_fun, out_fun, bam,
                args.minbq, args.minmq, args.minlen,
-               args.chrom, sites, args.flush, args.limit)
+               args.chrom, sites, args.flush, args.limit, tag_text)
     
     # print(records_dict, file=sys.stderr)
 
@@ -320,9 +369,8 @@ if __name__ == "__main__":
 
     nsites = 0
     nder = 0
-    if 'category_header' in sites:
-        print('CATSITES', '\t'.join(sites['category_header']), 'nder', 'nsites', sep='\t')
-        pass
+
+    print('CATSITES', category_header_str, 'nder', 'nsites', '\t'.join(tag_header), sep='\t')
 
     
     all_cats = sorted(site_results.keys())
@@ -333,10 +381,10 @@ if __name__ == "__main__":
         nsites += site_results[category]['nsites']
         nder += site_results[category]['nder']
         
-        print('CATSITES', '\t'.join(category), site_results[category]['nder'], site_results[category]['nsites'], sep='\t')
+        print('CATSITES', '\t'.join(category), site_results[category]['nder'], site_results[category]['nsites'], '\t'.join(tag_text), sep='\t')
         pass
 
-    print('ALLSITES', 'nder', 'nsites', 'fraction_derived', sep='\t')
-    print('ALLSITES', nder, nsites, nder/nsites, sep='\t')
+    print('ALLSITES', 'nder', 'nsites', 'fraction_derived', '\t'.join(tag_header), sep='\t')
+    print('ALLSITES', nder, nsites, nder/nsites, '\t'.join(tag_text), sep='\t')
 
     pass
