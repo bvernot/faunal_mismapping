@@ -1,0 +1,15 @@
+2022-11-23 14:39:51,521	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/0_human/human-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 14:40:54,912	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/0_human/human-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 14:48:43,557	DEBUG	main: BAM read in 470.473134 seconds
+2022-11-23 14:49:12,391	INFO	mapdamage.rscript: Performing Bayesian estimates
+2022-11-23 14:49:12,392	DEBUG	mapdamage.rscript: Call: Rscript /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/runGeneral.R --args 30 10000 10 50000 0 0 1 1 0 0 1 12 results_human-to-human_REF/ /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/ results_human-to-human_REF/Stats_out 0 0 0 results_human-to-human_REF/acgt_ratio.csv 0 0
+2022-11-23 14:53:27,594	DEBUG	mapdamage.rscript: Bayesian estimates completed in 255.200424 seconds
+2022-11-23 14:53:27,594	INFO	main: Successful run
+2022-11-23 14:53:27,595	DEBUG	main: Run completed in 754.511470 seconds
+2022-11-23 14:56:51,549	INFO	main: Started with the command: /usr/local64/bin/mapDamage -i /mnt/expressions/benjamin_vernot/faunal_mismapping/data/once-again/4_mappings/0_ref/0_human/human-to-human_REF.bam -r /mnt/solexa/Genomes/hg19_evan/whole_genome.fa
+2022-11-23 15:05:44,774	DEBUG	main: BAM read in 536.934786 seconds
+2022-11-23 15:06:11,738	INFO	mapdamage.rscript: Performing Bayesian estimates
+2022-11-23 15:06:11,738	DEBUG	mapdamage.rscript: Call: Rscript /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/runGeneral.R --args 30 10000 10 50000 0 0 1 1 0 0 1 12 results_human-to-human_REF/ /usr/local/lib/python2.7/dist-packages/mapdamage/Rscripts/stats/ results_human-to-human_REF/Stats_out 0 0 0 results_human-to-human_REF/acgt_ratio.csv 0 0
+2022-11-23 15:10:26,187	DEBUG	mapdamage.rscript: Bayesian estimates completed in 254.443656 seconds
+2022-11-23 15:10:26,192	INFO	main: Successful run
+2022-11-23 15:10:26,193	DEBUG	main: Run completed in 818.354166 seconds
