@@ -22,20 +22,25 @@ Num | Common name | Taxon               | Assembly name               | Link
 8   | drosophila  | *Drosophila melanogaster*  | Release 6 plus ISO1 MT | **[R11]** 
 9   | yeast       | *Saccharomyces cerevisiae* | R64                    | **[R12]** 
 X   | anthrax     | *Bacillus anthracis*       | ASM844v1               | **[R13]**
+xx  | sheep       | - | - | -
 
 ---
 
 ---
 # DNA simulation + Mapping
-The simulations of ancient Illumina DNA reads were performed using **Gargammel**. 
+The simulations of ancient Illumina reads were performed using **Gargammel**. 
 The nick frequency, length of overhanging ends, probability of deamination of Cs in overhanging double- and single-stranded parts were set to their standard-parameters of 0.03, 0.4, 0.01 and 0.3 *(This came from somewhere, right? Maybe cite this?)* **[R14]**.
 The read-length distribution originates from previous observations of real-world Illumina sequencings of ancient *(environmental?)* DNA **[R15]**.
 *(Should I say more about what exactly Gargammel does?)*
-For each of the 13 reference genomes, 10 Million reads were simulated and 0.2 % of the nucleotides were additionally mutated to a random base.
+
+For each of the 13 reference genomes, 10 Million reads were simulated and additionally, 0.2 % of the nucleotides were mutated to a random base.
 The simualted reads were mapped to the human reference genomes using **bwa bam2bam**, a modified version of **bwa aln** that takes bams both as input for query sequences and output.
-*(Should I even mention the N reference? We decided the third was better, right?)*
+
 Three different versions of the human reference genome were used; unmodified, flipped to "N" and flipped to "third allele".
+*(Should I even mention the N reference? We decided the third was better, right?)*
 For the genome flippep to the "third allele", the nucleotides at all diagnostic SNP positions *(how should I reference that?)* were changed to a random base that is neither derived nor ancestral at that position.
+
+..
 
 ---
 
