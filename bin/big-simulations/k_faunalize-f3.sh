@@ -25,69 +25,69 @@ analysis_name="1_SNP-subset-broad_analysis"
 mkdir -p $F3Dir/$analysis_name
 broad_analysis_all_inds=$(echo HGDP00666 HGDP00667 HGDP00668 HGDP00669 HGDP00670 HGDP00671 HGDP00672 HGDP00774 HGDP00775 HGDP00776 HGDP00777 HGDP00779 HGDP00780 HGDP00781 HGDP00540 HGDP00541 HGDP00543 HGDP00545 HGDP00546 HGDP00547 HGDP00548)
 
-# ### Make query file
-# broad_inds_queryfile=$F3Dir/$analysis_name/$analysis_name"_query_file.tsv"
-# echo HGDP00666 bear-1 | tr ' ' '\t' > $broad_inds_queryfile
-# echo HGDP00667 dog-1 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00668 sheep-1 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00774 bear-2 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00775 dog-2 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00776 sheep-2 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00540 bear-3 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00541 dog-3 | tr ' ' '\t' >> $broad_inds_queryfile
-# echo HGDP00543 sheep-3 | tr ' ' '\t' >> $broad_inds_queryfile
+### Make query file
+broad_inds_queryfile=$F3Dir/$analysis_name/$analysis_name"_query_file.tsv"
+echo HGDP00666 bear-1 | tr ' ' '\t' > $broad_inds_queryfile
+echo HGDP00667 dog-1 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00668 sheep-1 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00774 bear-2 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00775 dog-2 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00776 sheep-2 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00540 bear-3 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00541 dog-3 | tr ' ' '\t' >> $broad_inds_queryfile
+echo HGDP00543 sheep-3 | tr ' ' '\t' >> $broad_inds_queryfile
 
-# ### Run the faunalizer to create the new .geno files
-# ## Not lenient version
-# not_lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_not_lenient.eigenstratgeno"
-# # python \
-# #     /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
-# #     $original_geno \
-# #     $ind_file \
-# #     $broad_inds_queryfile \
-# #     $not_lenient_geno
+### Run the faunalizer to create the new .geno files
+## Not lenient version
+not_lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_not_lenient.eigenstratgeno"
+python \
+    /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
+    $original_geno \
+    $ind_file \
+    $broad_inds_queryfile \
+    $not_lenient_geno
 
-# # ## Lenient version
-# lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_lenient.eigenstratgeno"
-# # python \
-# #     /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
-# #     $original_geno \
-# #     $ind_file \
-# #     $broad_inds_queryfile \
-# #     $lenient_geno \
-# #     -l
+# ## Lenient version
+lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_lenient.eigenstratgeno"
+python \
+    /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
+    $original_geno \
+    $ind_file \
+    $broad_inds_queryfile \
+    $lenient_geno \
+    -l
 
-# array=( "control" "not_lenient" "lenient" )
-# array2=( $original_geno $not_lenient_geno $lenient_geno)
+array=( "control" "not_lenient" "lenient" )
+array2=( $original_geno $not_lenient_geno $lenient_geno)
 
 
-# # ## Make the pop list files
-# for sample in $broad_analysis_all_inds; do
-#     rm $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
-#     for comparison in $broad_analysis_all_inds; do
-#         echo $sample $comparison Mbuti >> $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
-#     done
+# ## Make the pop list files
+for sample in $broad_analysis_all_inds; do
+    rm $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
+    for comparison in $broad_analysis_all_inds; do
+        echo $sample $comparison Mbuti >> $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
+    done
 
-#     for type in "${!array[@]}"; do
-#         val1=${array[type]}
-#         val2=${array2[type]}
+    for type in "${!array[@]}"; do
+        val1=${array[type]}
+        val2=${array2[type]}
   
-#         # Make directories for separate analysis
-#         mkdir -p $F3Dir/$analysis_name/$val1
-#         mkdir -p $F3Dir/$analysis_name/$val1/parameter_files
-#         mkdir -p $F3Dir/$analysis_name/$val1/log_files
+        # Make directories for separate analysis
+        mkdir -p $F3Dir/$analysis_name/$val1
+        mkdir -p $F3Dir/$analysis_name/$val1/parameter_files
+        mkdir -p $F3Dir/$analysis_name/$val1/log_files
 
-#         # Make parameter files
-#         echo -e genotypename: ' \t '    $val2 > $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3     
-#         echo -e snpname: ' \t ' $snp_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
-#         echo -e indivname: ' \t '  $ind_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
-#         echo -e popfilename: ' \t '    $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        # Make parameter files
+        echo -e genotypename: ' \t '    $val2 > $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3     
+        echo -e snpname: ' \t ' $snp_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        echo -e indivname: ' \t '  $ind_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        echo -e popfilename: ' \t '    $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
 
-#         # Run F3 stats
-#         qp3Pop -p $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3 > $F3Dir/$analysis_name/$val1/log_files/$sample.X.Mbuti.$val1.F3.log & 
-#     done
-#     wait
-# done
+        # Run F3 stats
+        qp3Pop -p $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3 > $F3Dir/$analysis_name/$val1/log_files/$sample.X.Mbuti.$val1.F3.log & 
+    done
+    wait
+done
 
 ##  Make a heatmap table from F3 outputs
 for type in control not_lenient lenient; do    
@@ -139,68 +139,68 @@ analysis_name="2_SNP-subset-modern-europe"
 mkdir -p $F3Dir/$analysis_name
 modern_europeans_all_inds=$(echo HGDP00666 HGDP00667 HGDP00668 HGDP00669 HGDP00670 HGDP00671 HGDP00672 HGDP00511 HGDP00512 HGDP00513 HGDP00514 HGDP00515 HGDP00516 HGDP00517 HGDP00794 HGDP00796 HGDP00797 HGDP00798 HGDP00799 HGDP00800 HGDP00802 HGDP01147 HGDP01151 HGDP01152 HGDP01153 HGDP01155 HGDP01156 HGDP01157)
 
-# # modern_europeans_queryfile=$F3Dir/$analysis_name/$analysis_name"_query_file.tsv"
-# # echo HGDP00666 bear-1 | tr ' ' '\t' > $modern_europeans_queryfile
-# # echo HGDP00667 dog-1 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00668 sheep-1 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00511 bear-2 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00512 dog-2 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00513 sheep-2 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00794 bear-3 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00796 dog-3 | tr ' ' '\t' >> $modern_europeans_queryfile
-# # echo HGDP00797 sheep-3 | tr ' ' '\t' >> $modern_europeans_queryfile
+modern_europeans_queryfile=$F3Dir/$analysis_name/$analysis_name"_query_file.tsv"
+echo HGDP00666 bear-1 | tr ' ' '\t' > $modern_europeans_queryfile
+echo HGDP00667 dog-1 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00668 sheep-1 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00511 bear-2 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00512 dog-2 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00513 sheep-2 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00794 bear-3 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00796 dog-3 | tr ' ' '\t' >> $modern_europeans_queryfile
+echo HGDP00797 sheep-3 | tr ' ' '\t' >> $modern_europeans_queryfile
 
-# # ### Run the faunalizer to create the new .geno files
-# # ## Not lenient version
-# # not_lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_not_lenient.eigenstratgeno"
-# # python \
-# #     /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
-# #     $original_geno \
-# #     $ind_file \
-# #     $modern_europeans_queryfile \
-# #     $not_lenient_geno
+### Run the faunalizer to create the new .geno files
+## Not lenient version
+not_lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_not_lenient.eigenstratgeno"
+python \
+    /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
+    $original_geno \
+    $ind_file \
+    $modern_europeans_queryfile \
+    $not_lenient_geno
 
-# # # ## Lenient version
-# # lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_lenient.eigenstratgeno"
-# # python \
-# #     /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
-# #     $original_geno \
-# #     $ind_file \
-# #     $modern_europeans_queryfile \
-# #     $lenient_geno \
-# #      -l
+# ## Lenient version
+lenient_geno=$F3Dir/$analysis_name/"poseidon-with-faunal-inds-triallelic-removed-1240k-subset-FAUNALIZED_lenient.eigenstratgeno"
+python \
+    /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations/0_faunalizer/multi-faunalizer_v4.py \
+    $original_geno \
+    $ind_file \
+    $modern_europeans_queryfile \
+    $lenient_geno \
+     -l
 
-# # array=( "control" "not_lenient" "lenient" )
-# # array2=( $original_geno $not_lenient_geno $lenient_geno)
+array=( "control" "not_lenient" "lenient" )
+array2=( $original_geno $not_lenient_geno $lenient_geno)
 
 
-# # # ## Make the pop list files
-# # for sample in $modern_europeans_all_inds; do
-# #     rm $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
-# #     for comparison in $modern_europeans_all_inds; do
-# #         echo $sample $comparison Mbuti >> $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
-# #     done
+# ## Make the pop list files
+for sample in $modern_europeans_all_inds; do
+    rm $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
+    for comparison in $modern_europeans_all_inds; do
+        echo $sample $comparison Mbuti >> $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list
+    done
 
-# #     for type in "${!array[@]}"; do
-# #         val1=${array[type]}
-# #         val2=${array2[type]}
+    for type in "${!array[@]}"; do
+        val1=${array[type]}
+        val2=${array2[type]}
   
-# #         # Make directories for separate analysis
-# #         mkdir -p $F3Dir/$analysis_name/$val1
-# #         mkdir -p $F3Dir/$analysis_name/$val1/parameter_files
-# #         mkdir -p $F3Dir/$analysis_name/$val1/log_files
+        # Make directories for separate analysis
+        mkdir -p $F3Dir/$analysis_name/$val1
+        mkdir -p $F3Dir/$analysis_name/$val1/parameter_files
+        mkdir -p $F3Dir/$analysis_name/$val1/log_files
 
-# #         # Make parameter files
-# #         echo -e genotypename: ' \t '    $val2 > $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3     
-# #         echo -e snpname: ' \t ' $snp_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
-# #         echo -e indivname: ' \t '  $ind_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
-# #         echo -e popfilename: ' \t '    $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        # Make parameter files
+        echo -e genotypename: ' \t '    $val2 > $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3     
+        echo -e snpname: ' \t ' $snp_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        echo -e indivname: ' \t '  $ind_file >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
+        echo -e popfilename: ' \t '    $F3Dir/$analysis_name/$sample.X.Mbuti.F3.list >> $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3
 
-# #         # Run F3 stats
-# #         qp3Pop -p $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3 > $F3Dir/$analysis_name/$val1/log_files/$sample.X.Mbuti.$val1.F3.log & 
-# #     done
-# #     wait
-# # done
+        # Run F3 stats
+        qp3Pop -p $F3Dir/$analysis_name/$val1/parameter_files/par.$sample.X.Mbuti.$val1.F3 > $F3Dir/$analysis_name/$val1/log_files/$sample.X.Mbuti.$val1.F3.log & 
+    done
+    wait
+done
 
 ##  Make a heatmap table from F3 outputs
 for type in control not_lenient lenient; do    
