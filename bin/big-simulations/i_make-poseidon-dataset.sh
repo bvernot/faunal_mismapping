@@ -38,7 +38,7 @@ mkdir -p $poseidondatasetDir
 #     species=`echo $speciesDir | awk -F "/" '{print $NF}'`
 #     #echo ">" $species
 #     echo $plinkfilesDir/$species/$species-1_1240k.bed $plinkfilesDir/$species/$species-1_1240k.bim $plinkfilesDir/$species/$species-1_1240k.fam >> $poseidondatasetDir/faunal-merge.list
-#     echo $plinkfilesDir/$species/$species-2_1240k.bed $plinkfilesDir/$species/$species-2_1240k.bim $plinkfilesDir/$species/$species-2_1240k.fam >> $poseidondatasetDir/faunal-merge.list
+#     echo $plinkfilesDir/$species/$species-2_1240k.bed $plinkfilesDir/$species/$species-2_1240k.bim $pliposeidon-with-faunal-inds-triallelic-removed-1240k-sites-only.indnkfilesDir/$species/$species-2_1240k.fam >> $poseidondatasetDir/faunal-merge.list
 #     echo $plinkfilesDir/$species/$species-3_1240k.bed $plinkfilesDir/$species/$species-3_1240k.bim $plinkfilesDir/$species/$species-3_1240k.fam >> $poseidondatasetDir/faunal-merge.list
 # done
 
