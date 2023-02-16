@@ -68,7 +68,7 @@ def process_site(chrom, pos, sites, ref, bases, names, tag_text):
 
     ### report for all sites
 
-    for i in range(len(bases)):            
+    for i in range(len(bases)):
         print('READ', chrom, pos,
               names[i], bases[i], ref, a1, a2,
               'PASS' if ref in (a1, a2) else 'FAIL',
