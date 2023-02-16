@@ -1,0 +1,14 @@
+PLINK v1.90b5.2 64-bit (9 Jan 2018)
+Options in effect:
+  --extract /mnt/expressions/benjamin_vernot/faunal_mismapping/data/big-simulations/8_poseidon-dataset-plink-format/faunalised_inds_from_poseidon_noA1_eq_A2.bim
+  --file /mnt/expressions/benjamin_vernot/faunal_mismapping/data/big-simulations/9_merged-poseidon/poseidon-with-faunal-inds-triallelic-removed
+  --make-bed /mnt/expressions/benjamin_vernot/faunal_mismapping/data/big-simulations/9_merged-poseidon/poseidon-with-faunal-inds-triallelic-removed-1240k-sites-only
+
+Hostname: bionc13
+Working directory: /mnt/expressions/robin_warner/3_faunal-mismapping/bin/big-simulations
+Start time: Wed Nov 30 10:21:48 2022
+
+Error: --make-bed doesn't accept parameters.  (Did you forget '--out'?)
+For more information, try 'plink --help [flag name]' or 'plink --help | more'.
+
+End time: Wed Nov 30 10:21:48 2022

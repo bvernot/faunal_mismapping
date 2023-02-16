@@ -34,7 +34,6 @@ def majority(bases, prop):
         return allele
     else:
         return "N"
-    pass
 
 
 def flush(i, calls, out_fun, times_called):
@@ -58,46 +57,54 @@ def get_ref_base(col):
 
 site_results = dict()
 
-def process_site(chrom, pos, sites, ref, bases, names, tag_text):
+def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
+
     a1, a2, category = sites[(chrom, pos)]
+    ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
 
-    a34 = list('ACGT')
-    a34.remove(a1)
-    a34.remove(a2)
-    a3, a4 = a34
-
-    ### report for all sites
-
-    for i in range(len(bases)):
-        print('READ', chrom, pos,
-              names[i], bases[i], ref, a1, a2,
-              'PASS' if ref in (a1, a2) else 'FAIL',
-              'PASS' if bases[i] in (a1, a2) else 'FAIL',
-              '\t'.join(category), '\t'.join(tag_text), sep='\t')
-        pass
-    
-    ### aggregate report
-
-    if ref not in (a1, a2):
-        print('Skipping site because ref not in a1/a2!', ref, a1, a2)
-        return
+    # print(ref, a1, a2, a3, ref_fasta)
+    # if ref not in (a1, a2):
+    #     print('Skipping site because ref not in a1/a2!', ref, a1, a2)
+    #     return
 
     if category not in site_results:
-        site_results[category] = {'nsites' : 0, 'nder' : 0, 'n_a34' : 0}
+        site_results[category] = {'n_sites' : 0,
+                                 'n_der' : 0,
+                                 'ref_bam' : 0,
+                                 'ref_nonmatch' : 0,
+                                 'n_first' : 0,
+                                 'n_second' : 0, 
+                                 'n_third' : 0,
+                                 'n_fourth' : 0,
+                                 'ref_bam_not_a3' : 0}
         pass
 
     # print(bases, ref)
-    bases_a34 = [b for b in bases if b in (a3, a4)]
-    bases = [b for b in bases if b in (a1, a2)]
+    bases = [b for b in bases] # if b in (a1, a2)]
 
-    ref_match = sum(b == ref for b in bases)
-    ref_nonmatch = sum(b != ref for b in bases)
-    a34_match = len(bases_a34)
+    # ref_match = sum(b == ref for b in bases if b in (a1, a2))
+    # ref_nonmatch = sum(b != ref for b in bases if b in (a1, a2))
+    # third_nonmatch =  sum(b != ref for b in bases if b not in (a1, a2))
+    ref_match = sum(b == ref_human for b in bases if b in (a1, a2)) #ref from bam
+    ref_nonmatch = sum(b != ref_human for b in bases if b in (a1, a2))
+    first_allele = sum(b == a1 for b in bases)# if b in (a1, a2))
+    second_allele = sum(b == a2 for b in bases)# if b in (a1, a2))
+    third_allele = sum(b == a3 for b in bases)# if b not in (a1, a2))
+    fourth_allele = sum(b == b for b in bases if b not in (a1, a2, a3))
+    ref_bam_match = sum(b == ref_bam for b in bases)
     # print(bases, ref, ref_match, ref_nonmatch)
 
-    site_results[category]["nsites"] += ref_match + ref_nonmatch
-    site_results[category]["nder"] += ref_match
-    site_results[category]["n_a34"] += a34_match
+    site_results[category]["n_sites"] += ref_match + ref_nonmatch
+    site_results[category]["n_der"] += ref_match
+
+    site_results[category]["n_first"] += first_allele
+    site_results[category]["n_second"] += second_allele
+    site_results[category]["n_third"] += third_allele
+    site_results[category]["n_fourth"] += fourth_allele
+
+    site_results[category]["ref_nonmatch"] += ref_nonmatch
+    site_results[category]["ref_bam"] += ref_bam_match
+    site_results[category]["ref_bam_not_a3"] += ref_bam != a3
 
     # print(site_results)
     
@@ -105,7 +112,8 @@ def process_site(chrom, pos, sites, ref, bases, names, tag_text):
     
         
 
-def call_bases(call_fun, out_fun, bam, minbq, minmq, minlen, chrom, sites, flush_interval, limit, tag_text):
+def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third):
+
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -158,24 +166,29 @@ def call_bases(call_fun, out_fun, bam, minbq, minmq, minlen, chrom, sites, flush
             # print(col.pileups[0].alignment.query_sequence)
             # print(''.join(x[2] if x[2] is not None else '-' for x in col.pileups[0].alignment.get_aligned_pairs(with_seq=True)))
             
+            if random_bases:
+                random.seed(1984)
+                bases = random.choices(bases, k = math.floor(len(bases) / 2))
 
-            ## for calculating stats
-            process_site(col.reference_name,
-                         col.reference_pos + 1,
-                         sites,
-                         get_ref_base(col),
-                         bases,
-                         names, tag_text)
-            
-            # ## for outputing a file with every site listed
-            # calls.append((
-            #     col.reference_name,
-            #     col.reference_pos + 1,
-            #     get_ref_base(col),
-            #     len(bases),
-            #     call_fun(bases)
-            # ))
-            # pass
+            if len(bases) >= mincov:
+
+                ## for calculating stats
+                process_site(col.reference_name,
+                             col.reference_pos + 1,
+                             sites,
+                             get_ref_base(col),
+                             bases, third)
+                
+                ## for outputing a file with every site listed
+                calls.append((
+                    col.reference_name,
+                    col.reference_pos + 1,
+                    get_ref_base(col),
+                    len(bases),
+                    call_fun(bases)
+                ))
+                pass
+
             pass
 
         if i-last_flush > flush_interval:
@@ -189,33 +202,6 @@ def call_bases(call_fun, out_fun, bam, minbq, minmq, minlen, chrom, sites, flush
     flush(i, calls, out_fun, times_called)
     return
 
-
-# def write_vcf(calls, output, sample_name):
-#     filename = output + ".vcf"
-#     new_file = not os.path.isfile(filename)
-#     with open(filename, "w" if new_file else "a") as vcf:
-#         if new_file:
-#             print(
-#                 "##fileformat=VCFv4.1\n"
-#                 "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
-#                 "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Number of high-quality bases\">\n"
-#                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}".
-#                 format(sample=sample_name), file=vcf
-#             )
-#         for i in calls.itertuples():
-#             alt, gt = (".", 0) if i.ref == i.call else (i.call, 1)
-#             print(f"{i.chrom}\t{i.pos}\t.\t{i.ref}\t{alt}\t.\t.\t.\tGT:DP\t{gt}:{i.coverage}", file=vcf)
-
-
-# def write_pileup_og(pileups, output):
-#     filename = output + ".txt"
-#     new_file = not os.path.isfile(filename)
-#     with open(filename, "w" if new_file else "a") as tsv:
-#         if new_file: print("chrom\tpos\tref\tpileup\tA\tC\tG\tT", file=tsv)
-#         for i in pileups.itertuples():
-#             counts = Counter(i.call)
-#             counts_str = '\t'.join(str(counts[i]) for i in 'ACGT')
-#             print(f"{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}", file=tsv)
 
 def write_pileup(pileups, times_called, output, new_file, records_dict, report = True):
 
@@ -270,6 +256,28 @@ def read_sites(sites_file, add_chr):
         pass
     return sites
     
+def read_third_file(third_file):
+    third_sites = dict()
+    with open(third_file, "r") as tf:
+        for i, line in enumerate(tf):
+            line = line.rstrip().split()
+            chrom, pos, ref_control, a1, a2, ref_fasta, a3, *flag = line
+            pos = int(pos)
+            third_sites[(chrom,pos)] = (ref_control, a1, a2, ref_fasta, a3, *flag)
+    return third_sites
+
+def check_dicts(third, sites):
+    sites_no_header = dict(sites)
+    del sites_no_header['category_header']
+    set1 = set(third.keys())
+    set2 = set(sites_no_header.keys())
+    merged = set1 ^ set2
+    assert merged == set()
+
+    for key in third: #key == chrom, pos
+        _, a1, a2, _, _, *_ = third[key]
+        assert a1 == sites[key][0]
+        assert a2 == sites[key][1]
 
 
 if __name__ == "__main__":
@@ -289,7 +297,10 @@ if __name__ == "__main__":
     parser.add_argument("--sites", help="Restrict output to this list of sites (chrom, 1 based pos)")
     parser.add_argument("--flush", help="Print to file every N bases", type=int, default=100000)
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
-    parser.add_argument("--tags", help="Add columns to output (format: colname=coltext)", default=[], nargs="+")
+    parser.add_argument("--third_file", help="Defines which nucleotide is the third allele")
+    parser.add_argument("--random_bases", help="Restricts analysis to a random subset of bases.", type=bool)
+    parser.add_argument("--no_cats", help="Supress printing of categories", action=argparse.BooleanOptionalAction)
+
 
     args = parser.parse_args()
 
@@ -339,29 +350,22 @@ if __name__ == "__main__":
     #     out_fun = functools.partial(write_vcf, output=args.output,
     #                                 sample_name=args.sample_name)
 
+    if args.third_file:
+        third = read_third_file(args.third_file)
+
+
     if args.sites is not None:
         sites = read_sites(args.sites, args.add_chr)
     else:
         sites = None
         pass
 
-    if 'category_header' in sites:
-        category_header_str = '\t'.join(sites['category_header'])
-    else:
-        random_cat = next(iter(sites.values()))[2]
-        category_header_str = '\t'.join('cat' + str(i) for i in range(len(random_cat)))
-        pass
-
-    
-    print('READ', 'chrom', 'pos',
-          'name', 'base', 'ref', 'a1', 'a2',
-          'ref_in_a1a2', 'base_in_a1a2',
-          category_header_str, '\t'.join(tag_header), sep='\t')
-
+    check_dicts(third, sites)
     
     call_bases(call_fun, out_fun, bam,
                args.minbq, args.minmq, args.minlen,
-               args.chrom, sites, args.flush, args.limit, tag_text)
+               args.chrom, sites, args.flush, args.limit, args.random_bases, third)
+
     
     # print(records_dict, file=sys.stderr)
 
@@ -369,22 +373,81 @@ if __name__ == "__main__":
 
     nsites = 0
     nder = 0
+    ref_bam = 0
+    non_ref = 0
 
-    print('CATSITES', category_header_str, 'nder', 'nsites', '\t'.join(tag_header), sep='\t')
+    n_first = 0
+    n_second = 0
+    n_third = 0
+    n_fourth = 0
 
-    
+    ref_bam_not_a3 = 0
+
+    if not args.no_cats:
+        if 'category_header' in sites:
+            print("\n")
+            print('CATSITES', '\t'.join(sites['category_header']), 'nder', 'nsites',
+            'ref_bam', 'non_ref', 'n_1st', 'n_2nd', 'n_3rd', 'n_4th', 'ref_bam_not_a3', sep='\t')
+
+
     all_cats = sorted(site_results.keys())
     #    all_cats = sorted(site_results.keys(), key = lambda x : tuple(x[0], int(x[1]), x[2] if int(x[2]) < 14 else '14+'))
 
     for category in all_cats:
 
-        nsites += site_results[category]['nsites']
-        nder += site_results[category]['nder']
-        
-        print('CATSITES', '\t'.join(category), site_results[category]['nder'], site_results[category]['nsites'], '\t'.join(tag_text), sep='\t')
-        pass
+        nsites += site_results[category]['n_sites']
+        nder += site_results[category]['n_der']
+        ref_bam += site_results[category]['ref_bam']
+        non_ref += site_results[category]['ref_nonmatch']
+        n_first += site_results[category]['n_first']
+        n_second += site_results[category]['n_second']
+        n_third += site_results[category]['n_third']
+        n_fourth += site_results[category]['n_fourth']
+        ref_bam_not_a3 += site_results[category]["ref_bam_not_a3"]
 
-    print('ALLSITES', 'nder', 'nsites', 'fraction_derived', '\t'.join(tag_header), sep='\t')
-    print('ALLSITES', nder, nsites, nder/nsites, '\t'.join(tag_text), sep='\t')
+        if not args.no_cats:
+            print('CATSITES', '\t'.join(category), 
+            site_results[category]['n_der'], 
+            site_results[category]['n_sites'], 
+            site_results[category]['ref_bam'],
+            site_results[category]['ref_nonmatch'],
+            site_results[category]['n_first'],
+            site_results[category]['n_second'], 
+            site_results[category]['n_third'], 
+            site_results[category]['n_fourth'], 
+            site_results[category]["ref_bam_not_a3"], sep='\t')
 
-    pass
+    print('\n')
+    print('ALLSITES', 'nder', 'nsites','ref_bam', 'nonref', 'n_1st', 'n_2nd', 
+    'n_3rd', 'n_4th', 'ref_bam_not_a3', sep='\t')
+
+    print('ALLSITES', nder, nsites, ref_bam, non_ref, n_first, n_second, 
+        n_third, n_fourth, ref_bam_not_a3, sep='\t')
+    # print("Number of times that the reference of the bam file does not match the a3 allele given by the third_sites file:", site_results[category]['ref_bam_not_a3'],)
+
+# def write_vcf(calls, output, sample_name):
+#     filename = output + ".vcf"
+#     new_file = not os.path.isfile(filename)
+#     with open(filename, "w" if new_file else "a") as vcf:
+#         if new_file:
+#             print(
+#                 "##fileformat=VCFv4.1\n"
+#                 "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+#                 "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Number of high-quality bases\">\n"
+#                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}".
+#                 format(sample=sample_name), file=vcf
+#             )
+#         for i in calls.itertuples():
+#             alt, gt = (".", 0) if i.ref == i.call else (i.call, 1)
+#             print(f"{i.chrom}\t{i.pos}\t.\t{i.ref}\t{alt}\t.\t.\t.\tGT:DP\t{gt}:{i.coverage}", file=vcf)
+
+
+# def write_pileup_og(pileups, output):
+#     filename = output + ".txt"
+#     new_file = not os.path.isfile(filename)
+#     with open(filename, "w" if new_file else "a") as tsv:
+#         if new_file: print("chrom\tpos\tref\tpileup\tA\tC\tG\tT", file=tsv)
+#         for i in pileups.itertuples():
+#             counts = Counter(i.call)
+#             counts_str = '\t'.join(str(counts[i]) for i in 'ACGT')
+#             print(f"{i.chrom}\t{i.pos}\t{i.ref}\t{''.join(i.call)}\t{counts_str}", file=tsv)
