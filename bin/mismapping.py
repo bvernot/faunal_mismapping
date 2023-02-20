@@ -58,9 +58,12 @@ def get_ref_base(col):
 site_results = dict()
 
 def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
-
     a1, a2, category = sites[(chrom, pos)]
     ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
+
+    ##############
+    ### SOMETHING TO SPLIT OUT Ti Tv
+    ##############
 
     # print(ref, a1, a2, a3, ref_fasta)
     # if ref not in (a1, a2):
@@ -68,10 +71,12 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
     #     return
 
     if category not in site_results:
-        site_results[category] = {'n_sites' : 0,
+        site_results[category] = {'n_sites_a12' : 0,
+                                 'n_sites' : 0,
                                  'n_der' : 0,
+                                 'n_anc' : 0,
                                  'ref_bam' : 0,
-                                 'ref_nonmatch' : 0,
+                                  # 'ref_nonmatch' : 0,
                                  'n_first' : 0,
                                  'n_second' : 0, 
                                  'n_third' : 0,
@@ -94,15 +99,18 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
     ref_bam_match = sum(b == ref_bam for b in bases)
     # print(bases, ref, ref_match, ref_nonmatch)
 
-    site_results[category]["n_sites"] += ref_match + ref_nonmatch
+    site_results[category]["n_sites_a12"] += ref_match + ref_nonmatch
     site_results[category]["n_der"] += ref_match
+    site_results[category]["n_anc"] += ref_nonmatch
+
+    site_results[category]["n_sites"] += ref_match + ref_nonmatch + third_allele + fourth_allele
 
     site_results[category]["n_first"] += first_allele
     site_results[category]["n_second"] += second_allele
     site_results[category]["n_third"] += third_allele
     site_results[category]["n_fourth"] += fourth_allele
 
-    site_results[category]["ref_nonmatch"] += ref_nonmatch
+    # site_results[category]["ref_nonmatch"] += ref_nonmatch
     site_results[category]["ref_bam"] += ref_bam_match
     site_results[category]["ref_bam_not_a3"] += ref_bam != a3
 
@@ -111,9 +119,7 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
     return
     
         
-
 def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third):
-
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -140,25 +146,15 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
 
         # filter out sites with no reads and sites with indels
         if bases and "*" not in bases and all(len(i) == 1 for i in bases):
-
-            ## this starts to fall apart if it's too complex..
-            ## really should modify this so it keeps track of the indices that pass our various filters (len, ACGT, etc)
-            
-            bases = [b.upper() for b in col.get_query_sequences()]
-            names = col.get_query_names()
-
-            bases = [bases[i] for i,b in enumerate(bases) if b in "ACGT"]
-            names = [names[i] for i,b in enumerate(bases) if b in "ACGT"]
-
+            bases = [b.upper() for b in col.get_query_sequences()
+                     if b in "ACGTacgt"]
 
             #print('~~~~~~~~~~')
             #print(bases)
             if minlen is not None:
                 read_lens = [len(pileupread.alignment.get_reference_positions(full_length=True)) for pileupread in col.pileups]
                 bases = [bases[i] for i,l in enumerate(read_lens) if l >= minlen]
-                names = [names[i] for i,l in enumerate(read_lens) if l >= minlen]
                 pass
-
             #print(read_lens)
             #print(bases)
 
@@ -188,7 +184,6 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
                     call_fun(bases)
                 ))
                 pass
-
             pass
 
         if i-last_flush > flush_interval:
@@ -248,7 +243,7 @@ def read_sites(sites_file, add_chr):
             category = tuple(line[4:])
             
             if add_chr:
-                chrom = 'human_chr' + chrom
+                chrom = 'chr' + chrom
                 pass
             pos = int(pos)
             sites[(chrom,pos)] = (a1_der, a2_anc, category)
@@ -278,6 +273,47 @@ def check_dicts(third, sites):
         _, a1, a2, _, _, *_ = third[key]
         assert a1 == sites[key][0]
         assert a2 == sites[key][1]
+        pass
+    pass
+
+
+
+def report_stats(args, sites, site_results):
+
+    all_cats = sorted(site_results.keys())
+
+    all_stats_keys = site_results[all_cats[0]].keys()
+    print(all_stats_keys)
+
+    sum_stats = {k: sum(d[k] for d in site_results.values() if k in d) for k in all_stats_keys}
+
+    print(sum_stats)
+
+    if args.by_cats:
+        # if 'category_header' in sites:
+        print("\n")
+        print('CATSITES',
+              '\t'.join(sites['category_header']),
+              '\t'.join(all_stats_keys),
+              sep='\t')
+
+        for category in all_cats:
+            print('CATSITES',
+                  '\t'.join(category), 
+                  '\t'.join(site_results[category][k] for k in all_stats_keys),
+                  sep='\t')
+            pass
+        pass
+    
+
+    print('\n')
+    print('ALLSITES', '\t'.join(all_stats_keys), sep='\t')
+    print('ALLSITES',
+          '\t'.join(str(sum_stats[k]) for k in all_stats_keys),
+          sep='\t')
+
+    pass
+
 
 
 if __name__ == "__main__":
@@ -287,7 +323,7 @@ if __name__ == "__main__":
     parser.add_argument("--strategy", help="How to 'genotype'?", choices=["random", "majority", "pileup", "none"], required=True)
     parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
     parser.add_argument("--seed", help="Set seed for random allele sampling [random]")
-    #parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
+    parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
     parser.add_argument("--minbq", help="Minimum base quality", type=int, default=13)
     parser.add_argument("--minmq", help="Minimum read mapping quality", type=int, default=0)
     parser.add_argument("--minlen", help="Minimum read length", type=int, default=35)
@@ -299,14 +335,10 @@ if __name__ == "__main__":
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
     parser.add_argument("--third_file", help="Defines which nucleotide is the third allele")
     parser.add_argument("--random_bases", help="Restricts analysis to a random subset of bases.", type=bool)
-    parser.add_argument("--no_cats", help="Supress printing of categories", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--by-cats", help="Print statistics for each SNP category", action=argparse.BooleanOptionalAction)
 
 
     args = parser.parse_args()
-
-    ## parse tags
-    tag_header = [x.split('=')[0] for x in args.tags]
-    tag_text = [x.split('=')[1] for x in args.tags]
 
     # if args.strategy != "pileup" and not args.sample_name:
     #     parser.error(f"Sample name has to be specified when writing a VCF file")
@@ -361,15 +393,27 @@ if __name__ == "__main__":
         pass
 
     check_dicts(third, sites)
+
     
-    call_bases(call_fun, out_fun, bam,
+    call_bases(call_fun, out_fun, bam, args.mincov,
                args.minbq, args.minmq, args.minlen,
                args.chrom, sites, args.flush, args.limit, args.random_bases, third)
-
     
     # print(records_dict, file=sys.stderr)
 
     # print(site_results)
+
+
+    report_stats(args, sites, site_results)
+
+    exit()
+    
+    
+    all_cats = sorted(site_results.keys())
+    print(all_cats)
+    all_cats = site_results.keys()
+    print(all_cats)
+
 
     nsites = 0
     nder = 0
@@ -383,7 +427,7 @@ if __name__ == "__main__":
 
     ref_bam_not_a3 = 0
 
-    if not args.no_cats:
+    if args.by_cats:
         if 'category_header' in sites:
             print("\n")
             print('CATSITES', '\t'.join(sites['category_header']), 'nder', 'nsites',
@@ -405,7 +449,7 @@ if __name__ == "__main__":
         n_fourth += site_results[category]['n_fourth']
         ref_bam_not_a3 += site_results[category]["ref_bam_not_a3"]
 
-        if not args.no_cats:
+        if args.by_cats:
             print('CATSITES', '\t'.join(category), 
             site_results[category]['n_der'], 
             site_results[category]['n_sites'], 
