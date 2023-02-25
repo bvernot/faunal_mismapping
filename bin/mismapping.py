@@ -13,6 +13,7 @@ from collections import namedtuple
 
 import pysam
 import pandas as pd
+import numpy as np
 
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
@@ -56,11 +57,61 @@ def get_ref_base(col):
 
 
 site_results = dict()
+config_results = dict()
 
-def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
+def process_site(chrom, pos, sites, ref_bam, bases, third_sites, read_names):
+
+    # bases = [b for b in bases] # if b in (a1, a2)]
+
+    if len(bases) > 1:
+        print('MORE BASES')
+        pass
+
     a1, a2, category = sites[(chrom, pos)]
     ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
 
+    anc_base = [a1, a2]
+    anc_base.remove(ref_human)
+    if len(anc_base) != 1:
+        print('WERID ERROR')
+        pass
+    anc_base = anc_base[0]
+
+    der_base = ref_human
+
+    a4 = [b for b in ['A', 'C', 'G', 'T'] if b not in [anc_base, der_base, a3]]
+    if len(a4) != 1:
+        print('WERID ERROR')
+        pass
+    a4 = a4[0]
+    
+    # print(bases, ref_human, a2, a3)
+    # print(anc_base, der_base, a3, a4)
+
+    config = (anc_base, der_base, a3, a4)
+    if config not in config_results:
+        config_results[config] = {'n_anc' : 0,
+                                  'n_der' : 0,
+                                  'n_a3' : 0,
+                                  'n_a4' : 0}
+        pass
+
+    config_results[config]['n_anc'] += sum(b == anc_base for b in bases)
+    config_results[config]['n_der'] += sum(b == der_base for b in bases)
+    config_results[config]['n_a3'] += sum(b == a3 for b in bases)
+    config_results[config]['n_a4'] += sum(b == a4 for b in bases)
+
+    if len(bases) == len(read_names):
+        for i in range(len(bases)):
+            print('READ_NAMES', ['anc_base', 'der_base', 'a3', 'a4'][[anc_base, der_base, a3, a4].index(bases[i])], read_names[i])
+            pass
+        pass
+    else:
+        print('READ_NAMES', 'LENGTH_MISMATCH')
+        pass
+
+    # print(config_results)
+    
     ##############
     ### SOMETHING TO SPLIT OUT Ti Tv
     ##############
@@ -84,8 +135,6 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
                                  'ref_bam_not_a3' : 0}
         pass
 
-    # print(bases, ref)
-    bases = [b for b in bases] # if b in (a1, a2)]
 
     # ref_match = sum(b == ref for b in bases if b in (a1, a2))
     # ref_nonmatch = sum(b != ref for b in bases if b in (a1, a2))
@@ -118,8 +167,8 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites):
     
     return
     
-        
-def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third):
+
+def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third, subs):
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -128,6 +177,9 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
     last_flush = 0
     times_called = 0
 
+    # subs = {}
+    read_names = dict()
+    
     for i, col in enumerate(bam.pileup(contig=chrom, compute_baq=False,
                                        min_base_quality=minbq,
                                        min_mapping_quality=minmq)):
@@ -137,9 +189,75 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
         # print(col.reference_name, col.reference_pos)
         # print(sites)
 
+
+        debug_reads = True
+        debug_reads = False
+
+        
+        
+        for fragment_idx, pileup in enumerate(col.pileups):
+            
+            if pileup.alignment.query_name in read_names:
+                continue
+
+            if len(pileup.alignment.query_sequence) < minlen:
+                if debug_reads: print('Filtering read due to minimum length', pileup.alignment.query_name, len(pileup.alignment.query_sequence))
+                continue
+
+            if debug_reads: print()
+            
+            ## save this read name so we don't process it again
+            read_names[pileup.alignment.query_name] = 0
+            
+            ## use these reads to build up a substitution model
+            if debug_reads: print(pileup.alignment.query_name)
+            bases = col.get_query_sequences(add_indels=True)
+            if debug_reads: print(bases)
+            if debug_reads: print(col.get_query_positions())
+            
+            if debug_reads: print(pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False))
+            if debug_reads: print(pileup.alignment.query_sequence, '         <-- query sequence (no gaps)')
+            # if debug_reads: print(pileup.alignment.get_reference_sequence()) ## includes clipped bases?
+            # if debug_reads: print(''.join(str(x) if x[2] is not None else '-' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=True)))
+            # if debug_reads: print(''.join(x[1] if x[1] is not None else '-' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=True)))
+            q_seq = ''.join(pileup.alignment.query_sequence[x[0]] if x[0] is not None else '-' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False))
+            r_seq = ''.join(x[2] if x[1] is not None else '-' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False))
+            q_pos = [x[0] for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False)]
+            r_pos = [x[1] for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False)]
+            
+            if debug_reads: print(q_seq, '<-- query sequence (with gaps)')
+            if debug_reads: print(r_seq, '<-- reference sequence (with gaps)')
+            
+            for pos in range(len(q_seq)):
+                if r_pos[pos] is not None \
+                   and q_pos[pos] is not None \
+                   and (col.reference_name, r_pos[pos]+1) not in sites:
+                    s = (r_seq[pos].upper(), q_seq[pos].upper())
+                    if s not in subs: subs[s] = 0
+                    subs[s] += 1
+                    pass
+                
+                if debug_reads: print(q_seq)
+                if debug_reads: print(r_seq)
+                if debug_reads: print(' ' * pos + q_seq[pos], '<-- SNP' if r_pos[pos] is not None and (col.reference_name, r_pos[pos]+1) in sites else '')
+                if debug_reads: print(' ' * pos + r_seq[pos])
+                pass
+            # if debug_reads: print(' ' * col.get_query_positions()[fragment_idx] + pileup.alignment.query_sequence[col.get_query_positions()[fragment_idx]])
+            # if debug_reads: print(' ' * col.get_query_positions()[fragment_idx] + ''.join(x[2] if x[1] is not None else '-' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False))[col.get_query_positions()[fragment_idx]])
+            
+            ## print the SNP site(s) if any exist in this read
+            s_pos = [p for p in r_pos if p is not None and (col.reference_name, p+1) in sites]
+            if debug_reads: print(''.join(q_seq[i]+'<- SNP' if p is not None and (col.reference_name, p+1) in sites else ' ' for i,p in enumerate(r_pos)))
+            if debug_reads: print(''.join(' ' if x[1] is not None and ((col.reference_name, x[1]+1,) not in sites) else str(x[2]) + ' HEY' for x in pileup.alignment.get_aligned_pairs(with_seq=True, matches_only=False)))
+            if debug_reads: print('SNP pos:', s_pos)
+
+            if debug_reads: print('substitution matrix:', subs)
+            pass
+
         ###
         ## only process the sites that we requested
-        if sites is not None and (col.reference_name, col.reference_pos + 1) not in sites: continue
+        if sites is not None and (col.reference_name, col.reference_pos + 1) not in sites:
+            continue
 
         
         bases = col.get_query_sequences(add_indels=True)
@@ -165,6 +283,7 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
             if random_bases:
                 random.seed(1984)
                 bases = random.choices(bases, k = math.floor(len(bases) / 2))
+                pass
 
             if len(bases) >= mincov:
 
@@ -173,7 +292,8 @@ def call_bases(call_fun, out_fun, bam, mincov, minbq, minmq, minlen, chrom, site
                              col.reference_pos + 1,
                              sites,
                              get_ref_base(col),
-                             bases, third)
+                             bases, third,
+                             [pileup.alignment.query_name for pileup in col.pileups])
                 
                 ## for outputing a file with every site listed
                 calls.append((
@@ -316,6 +436,105 @@ def report_stats(args, sites, site_results):
 
 
 
+def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs):
+
+    lik = 0
+    for config in all_cats:
+
+        # print(config)
+        config_stats = config_results[config]
+        # print(config_stats)
+
+        ## observation counts
+        n_anc, n_der, n_a3, n_a4 = [config_stats[c] for c in ('n_anc', 'n_der', 'n_a3', 'n_a4')]
+        # print(n_anc, n_der, n_a3, n_a4)
+
+        ## alleles for each state
+        anc, der, a3, a4 = config
+
+        ## loop through observations
+        bases = ['A', 'C', 'G', 'T']
+        for obs in bases:
+
+            ## "loop" through hidden state genotypes
+            temp_lik = 0
+            
+            ## anc
+            temp_lik += (f_anc + f_a4) * subs[(anc,obs)]
+            
+            ## der
+            temp_lik += (f_der + f_a4) * subs[(der,obs)]
+            
+            ## a3
+            temp_lik += (1 - f_anc - f_der - 3*f_a4) * subs[(a3,obs)]
+            
+            ## a4
+            temp_lik += (f_a4) * subs[(a4,obs)]
+
+            i = config.index(obs)
+            n_obs = [n_anc, n_der, n_a3, n_a4][i]
+            # print(i, ':', n_obs)
+            
+            lik += n_obs * math.log(temp_lik)
+
+            pass
+
+        pass
+
+    return lik
+
+
+def calc_lik(args, sites, config_results, subs):
+
+    all_cats = sorted(config_results.keys())
+
+    all_stats_keys = config_results[all_cats[0]].keys()
+
+    print('lik', all_cats)
+    print('lik', all_stats_keys)
+
+    sum_stats = {k: sum(d[k] for d in config_results.values() if k in d) for k in all_stats_keys}
+
+    print('lik', sum_stats)
+
+    f_anc, f_der, f_a4 = (.1, .5, .05)
+
+    bases = ['A', 'C', 'G', 'T']
+
+    #subs = {(h,o) : 0.997 if h == o else 0.001 for h in bases for o in bases}
+    print(subs)
+
+    all_liks = []
+    all_params = []
+
+    print('LIKELIHOOD', 'f_anc', 'f_der', 'f_a4', 'lik', 'rel_f_anc', 'rel_f_der', sep='\t')
+
+    for f_anc in np.arange(0,1.1,.01):
+        for f_der in np.arange(0,1.1,.01):
+            for f_a4 in np.arange(0,.3,.01):
+
+                if f_anc + f_der + 3*f_a4 > 1:
+                    continue
+                
+                lik = calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs)
+                print('LIKELIHOOD', f_anc, f_der, f_a4, lik, f_anc/(f_anc+f_der), f_der/(f_anc+f_der), sep='\t')
+                all_params += [(f_anc, f_der, f_a4)]
+                all_liks += [lik]
+                
+                pass
+            pass
+        pass
+
+    max_lik_i = np.argmax(all_liks)
+    f_anc, f_der, f_a4 = all_params[max_lik_i]
+    max_lik = all_liks[max_lik_i]
+    print('MAXIMUM_LIKELIHOOD', f_anc, f_der, f_a4, max_lik, f_anc/(f_anc+f_der), f_der/(f_anc+f_der), sep='\t')
+
+    return(max_lik, max_lik_i, all_liks, all_params)
+
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Call alleles from a BAM file using various criteria")
     parser.add_argument("--bam", help="BAM file to sample from", required=True)
@@ -370,7 +589,7 @@ if __name__ == "__main__":
         call_fun = lambda x: random.choice(x)
         #out_fun = functools.partial(write_vcf, output=args.output,
         #                            sample_name=args.sample_name)
-        out_fun = functools.partial(write_pileup, output=output, new_file=new_file, records_dict=records_dict)
+        out_fun = functools.partial(write_pileup, output=output, new_file=new_file, records_dict=records_dict, report=False)
 
     elif args.strategy == "none":
         call_fun = lambda x: "".join(x)
@@ -394,10 +613,23 @@ if __name__ == "__main__":
 
     check_dicts(third, sites)
 
-    
+    subs_matrix = dict()
     call_bases(call_fun, out_fun, bam, args.mincov,
                args.minbq, args.minmq, args.minlen,
-               args.chrom, sites, args.flush, args.limit, args.random_bases, third)
+               args.chrom, sites, args.flush, args.limit,
+               args.random_bases, third, subs = subs_matrix)
+
+    subs_probs = dict()
+    print('Substitution matrix + probabilities')
+    print(subs_matrix)
+    for b1 in list('ACGT'):
+        s = sum(subs_matrix[(b1,b2)] for b2 in list('ACGT'))
+        for b2 in list('ACGT'):
+            subs_probs[(b1,b2)] = subs_matrix[(b1,b2)] / s 
+            print('', b1, b2, subs_matrix[(b1,b2)], subs_probs[(b1,b2)], sep='\t')
+            pass
+        pass
+            
     
     # print(records_dict, file=sys.stderr)
 
@@ -405,6 +637,7 @@ if __name__ == "__main__":
 
 
     report_stats(args, sites, site_results)
+    calc_lik(args, sites, config_results, subs_probs)
 
     exit()
     
