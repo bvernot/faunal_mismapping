@@ -517,24 +517,33 @@ def report_stats(args, sites, results):
 
         if 'human' in sim_results:
             h = sim_results['human']['N']
+            h_a1a2 = sim_results['human']['anc_base'] + sim_results['human']['der_base']
         else:
             h = 0
+            h_a1a2 = 0
             pass
         results['full_report_str'] += '\t' + 'truth:' + \
             '\t' + str(h) + \
             '\t' + str(h / sum(sim_results[spc]['N'] for spc in sim_results))
         results['full_report_str'] += '\t' + 'truth_a1a2:' + \
-            '\t' + str(h) + \
-            '\t' + str(h / sum(sim_results[spc]['anc_base'] + sim_results[spc]['der_base'] for spc in sim_results))
+            '\t' + str(h_a1a2) + \
+            '\t' + str(h_a1a2 / sum(sim_results[spc]['anc_base'] + sim_results[spc]['der_base'] for spc in sim_results)) + \
+            '\t' + 'meth:' + str(args.lik_method)
+        
 
 
     pass
 
 
 
-def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs):
+def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs, args):
 
     lik = 0
+
+    #####
+    ## A configuration is e.g. A,C,G,T for anc, der, a3, a4.
+    ## So there are 16 possible configurations
+
     for config in all_cats:
 
         # print(config)
@@ -554,18 +563,28 @@ def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs):
 
             ## "loop" through hidden state genotypes
             temp_lik = 0
-            
-            ## anc - is this correct, to mult f_a4 with the subs rate? or at least, with this sub rate?
-            temp_lik += (f_anc + f_a4) * subs[(anc,obs)]
-            
-            ## der
-            temp_lik += (f_der + f_a4) * subs[(der,obs)]
-            
-            ## a3
-            temp_lik += (1 - f_anc - f_der - 3*f_a4) * subs[(a3,obs)]
-            
-            ## a4
-            temp_lik += (f_a4) * subs[(a4,obs)]
+
+            if args.lik_method == 0:
+                ## anc - is this correct, to mult f_a4 with the subs rate? or at least, with this sub rate?
+                temp_lik += (f_anc + f_a4) * subs[(anc,obs)]
+                ## der
+                temp_lik += (f_der + f_a4) * subs[(der,obs)]
+                ## a3
+                temp_lik += (1 - f_anc - f_der - 3*f_a4) * subs[(a3,obs)]
+                ## a4
+                temp_lik += (f_a4) * subs[(a4,obs)]
+
+            elif args.lik_method == 1:
+                ## anc - is this correct, to mult f_a4 with the subs rate? or at least, with this sub rate?
+                temp_lik += (f_anc) * subs[(anc,obs)] + (f_a4 if anc == obs else 0)
+                ## der
+                temp_lik += (f_der) * subs[(der,obs)] + (f_a4 if der == obs else 0)
+                ## a3
+                temp_lik += (1 - f_anc - f_der - 3*f_a4) * subs[(a3,obs)]
+                ## a4
+                ## shouldn't have f_a4*subs here either?
+                temp_lik += (f_a4) * subs[(a4,obs)]  + (f_a4 if a4 == obs else 0)
+                pass
 
             i = config.index(obs)
             n_obs = [n_anc, n_der, n_a3, n_a4][i]
@@ -603,14 +622,28 @@ def calc_lik(args, sites, config_results, subs):
     all_liks = []
     all_params = []
 
-    for f_anc in np.arange(0, 1.1, args.step):
-        for f_der in np.arange(0, 1.1, args.step):
-            for f_a4 in np.arange(0, .3, args.step):
+    if args.breaks_anc_der is None:
+        breaks_anc_der = np.arange(0, 1.1, args.step)
+    else:
+        breaks_anc_der = args.breaks_anc_der
+        pass
+    
+    if args.breaks_a4 is None:
+        breaks_a4 = np.arange(0, .1, args.step)
+    else:
+        breaks_a4 = args.breaks_a4
+        pass
+        
+    for f_anc in breaks_anc_der:
+        for f_der in breaks_anc_der:
+            for f_a4 in breaks_a4:
 
                 if f_anc + f_der + 3*f_a4 > 1:
                     continue
+                if f_anc + f_der == 0:
+                    continue
                 
-                lik = calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs)
+                lik = calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs, args)
                 # print('LIKELIHOOD', f_anc, f_der, f_a4, lik, f_anc/(f_anc+f_der), f_der/(f_anc+f_der), sep='\t')
                 all_params += [(f_anc, f_der, f_a4)]
                 all_liks += [lik]
@@ -670,9 +703,12 @@ if __name__ == "__main__":
     parser.add_argument("--sites", help="Restrict output to this list of sites (chrom, 1 based pos)")
     # parser.add_argument("--flush", help="Print to file every N bases", type=int, default=100000)
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
+    parser.add_argument("--lik-method", help="Method for computing likelihood (devel)", type=int, default=0)
     parser.add_argument("--third_file", help="Defines which nucleotide is the third allele")
     parser.add_argument("--random-bases", help="Restricts analysis to a random read at each site.", action='store_true')
     parser.add_argument("--step", help="Step for grid likelihood search", type=float, default=0.01)
+    parser.add_argument("--breaks-anc-der", help="Explicit breaks for grid likelihood search (anc and der proportions)", nargs='+', type=float, default=None)
+    parser.add_argument("--breaks-a4", help="Explicit breaks for grid likelihood search (a4 allele proportion)", nargs='+', type=float, default=None)
     parser.add_argument("--report-sim-truth",
                         help='Try to parse the simulated species from a read name, and report the "truth". ' +
                         'Assumes format "species_rest_of_name". Give a list of species to report.',
