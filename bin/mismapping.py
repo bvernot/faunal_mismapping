@@ -59,7 +59,9 @@ def get_ref_base(col):
 #site_results = dict()
 #config_results = dict()
 
-def process_site(chrom, pos, sites, ref_bam, bases, third_sites, results, read_names):
+def process_site(chrom, pos, sites, ref_bam, bases,
+                 # third_sites,
+                 results, read_names):
 
     # bases = [b for b in bases] # if b in (a1, a2)]
 
@@ -67,8 +69,8 @@ def process_site(chrom, pos, sites, ref_bam, bases, third_sites, results, read_n
         print('MORE BASES')
         pass
 
-    a1, a2, category = sites[(chrom, pos)]
-    ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
+    a1, a2, a3, ref_human, category = sites[(chrom, pos)]
+    #ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
 
     anc_base = [a1, a2]
     anc_base.remove(ref_human)
@@ -235,7 +237,9 @@ def compute_subs_counts(pileups, results, args, reference_name):
 # call_fun, out_fun, 
 #def call_bases(bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third, subs):
 # @profile
-def call_bases(bam, sites, third, results):
+def call_bases(bam, sites,
+               # third,
+               results):
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -337,7 +341,8 @@ def call_bases(bam, sites, third, results):
                      col.reference_pos + 1,
                      sites,
                      get_ref_base(col),
-                     bases, third,
+                     bases,
+                     # third,
                      results,
                      [pileup.alignment.query_name for pileup in pileups])
                 
@@ -385,6 +390,31 @@ def check_range(value):
 
 
 def read_sites(sites_file, add_chr):
+    sites = dict()
+    with open(sites_file, "rt") as sf:
+        for i, line in enumerate(sf):
+            line = line.rstrip().split()
+            chrom,pos = line[0:2]
+            if i == 0 and not pos.isnumeric():
+                print('Keeping header:', line, file=sys.stderr)
+                sites['category_header'] = tuple(line[4:])
+                continue
+            
+            a1_der, a2_anc = line[2:4]
+            ref_fasta, a1_der, a2_anc, a3 = line[2:6]
+
+            category = tuple(line[6:])
+            
+            if add_chr:
+                chrom = 'chr' + chrom
+                pass
+            pos = int(pos)
+            sites[(chrom,pos)] = (a1_der, a2_anc, a3, ref_fasta, category)
+            pass
+        pass
+    return sites
+    
+def read_sites_og(sites_file, add_chr):
     sites = dict()
     with open(sites_file, "rt") as sf:
         for i, line in enumerate(sf):
@@ -575,6 +605,8 @@ def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs, args
                 temp_lik += (f_a4) * subs[(a4,obs)]
 
             elif args.lik_method == 1:
+                ## THIRD.l1 does not work as well - this was an attempt at a different MLE function.
+                
                 ## anc - is this correct, to mult f_a4 with the subs rate? or at least, with this sub rate?
                 temp_lik += (f_anc) * subs[(anc,obs)] + (f_a4 if anc == obs else 0)
                 ## der
@@ -584,8 +616,43 @@ def calc_lik_for_params(all_cats, config_results, f_anc, f_der, f_a4, subs, args
                 ## a4
                 ## shouldn't have f_a4*subs here either?
                 temp_lik += (f_a4) * subs[(a4,obs)]  + (f_a4 if a4 == obs else 0)
+
+
+            elif args.lik_method == 2:
+                ## THIRD.l2 is currently the best method!
+
+                ## HERE f_a4 is the "multiple mutation" rate, from the ancestral allele.
+                ## We assume that there isn't enough time for the derived allele to get multiple mutations
+                
+                ## anc
+                temp_lik += (f_anc) * subs[(anc,obs)]
+                ## der
+                temp_lik += (f_der + f_a4) * subs[(der,obs)]
+                ## a3
+                temp_lik += (1 - f_anc - f_der - 2*f_a4) * subs[(a3,obs)]
+                ## a4
+                temp_lik += (f_a4) * subs[(a4,obs)]
+
+            elif args.lik_method == 3:
+                ## THIRD.l3 does not work as well - this was an attempt at a different MLE function.
+
+                ## HERE f_a4 is the "multiple mutation" rate, from the ancestral allele.
+                ## We assume that there isn't enough time for the derived allele to get multiple mutations
+
+                ## given an observed base "obs", this base could have originated from any of the 4 bases.
+                ## If it originates from a different base than 
+                
+                ## anc
+                temp_lik += (f_anc) * subs[(anc,obs)]
+                ## der
+                temp_lik += (f_der + f_a4) * subs[(der,obs)]
+                ## a3
+                temp_lik += (1 - f_anc - f_der - 1*f_a4) * subs[(a3,obs)]
+                ## a4
+                temp_lik += (f_a4) * subs[(a4,obs)]
                 pass
 
+            
             i = config.index(obs)
             n_obs = [n_anc, n_der, n_a3, n_a4][i]
             # print(i, ':', n_obs)
@@ -713,7 +780,8 @@ if __name__ == "__main__":
                         help='Try to parse the simulated species from a read name, and report the "truth". ' +
                         'Assumes format "species_rest_of_name". Give a list of species to report.',
                         nargs = '+', default = None)
-    parser.add_argument("--by-cats", help="Print statistics for each SNP category", action=argparse.BooleanOptionalAction)
+    # parser.add_argument("--by-cats", help="Print statistics for each SNP category", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--by-cats", help="Print statistics for each SNP category", action='store_true')
 
 
     args = parser.parse_args()
@@ -735,9 +803,9 @@ if __name__ == "__main__":
         pass
 
 
-    if args.third_file:
-        third = read_third_file(args.third_file)
-        pass
+    # if args.third_file:
+    #     third = read_third_file(args.third_file)
+    #     pass
 
 
     if args.sites is not None:
@@ -746,7 +814,7 @@ if __name__ == "__main__":
         sites = None
         pass
 
-    check_dicts(third, sites)
+    # check_dicts(third, sites)
 
     # subs_matrix = dict()
     results = dict()
@@ -762,7 +830,7 @@ if __name__ == "__main__":
     #            args.random_bases, third, subs = subs_matrix)
     call_bases(bam = bam,
                sites = sites,
-               third = third,
+               # third = third,
                results = results)
 
     subs_probs = compute_subs_probs(results['subs_matrix'])
