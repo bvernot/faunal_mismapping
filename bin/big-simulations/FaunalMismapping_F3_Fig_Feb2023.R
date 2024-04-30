@@ -20,11 +20,11 @@ work=paste("/mnt/expressions/benjamin_vernot/faunal_mismapping/data/big-simulati
 ## Read in colour files for data labels
 colour_file=paste("/home/niall_cooke/Documents/SpeedRun_Notes/Heatmaps/Faunalizer_Labels_Colours.csv",sep="")
 colour_data<-read.csv(colour_file,
-                      col.names=c("Population.", "NotLenientLabel","NotLenientLabel_60","LenientLabel","Colour"),
+                      col.names=c("Population.", "NotLenientLabel","NotLenientLabel_60","UpdatedLenientLabel","LenientLabel","ModifiedLenientLabel","Colour"),
                       header=FALSE)
 
 ## Set the palette for the heatmap (low, high)
-my_palette <- colorRampPalette(c("red", "yellow"))(n = 30)
+my_palette <- colorRampPalette(c("red", "yellow"))(n = 20)
 
 ## The analysis was done in several different stages - the name of the one that is to be included in the paper is "4_SNP-subset-60-per-cent-modern-europe"
 analysis_name=paste("4_SNP-subset-60-per-cent-modern-europe")
@@ -56,17 +56,18 @@ colour_ordered<-as.vector(control_data_with_colour$Colour)
 
 ## Plot as a pdf (or a png)
 #png(paste(work,analysis_name,"/control/",analysis_name,"-control-HEATMAP.png", sep=""), height=15, width=15, res=300, units="cm")
+#pdf(paste(work,analysis_name,"/control/",analysis_name,"-control-HEATMAP.pdf",sep=""))
 
-pdf(paste(work,analysis_name,"/control/",analysis_name,"-control-HEATMAP.pdf",sep=""))
+png(paste("/home/niall_cooke/Documents/SpeedRun_Notes/Heatmaps/Faunalizer/MAIN_FIG/",analysis_name,"-control-HEATMAP_update.png", sep=""), height=12.5, width=12.5, res=300, units="cm")
 heatmap.2(mat_data,
-          trace="none",         # turns off trace lines inside the hat map
+          trace="none",         # turns off trace lines inside the heat map
           scale="none",
           col=my_palette,
           cexRow=0.6,
           cexCol=0.6,
           srtRow = 0,
           srtCol = 90,
-          keysize=1.25,
+          keysize=1.5,
           key.title = NULL,
           key.xlab = "f3",
           key.ylab = NULL,
@@ -75,13 +76,16 @@ heatmap.2(mat_data,
           Colv = TRUE,
           colRow = colour_ordered,
           colCol = colour_ordered,
-          labRow = paste(as.vector(control_data_with_colour$LenientLabel),sep=""),
-          labCol = paste(as.vector(control_data_with_colour$LenientLabel),sep=""),
+          labRow = paste(as.vector(control_data_with_colour$ModifiedLenientLabel),sep=""),
+          #labCol = paste(as.vector(control_data_with_colour$LenientLabel),sep=""),
+          labCol = paste((" "),sep=""),
           #Colv=if(symm)"Rowv" else TRUE,
           dendrogram="col",
           #notecol="green",
           margins =c(7,7))
 dev.off()
+
+
 
 ###### 2) "Not lenient" image (i.e. post-faunalization)
 
@@ -107,10 +111,9 @@ colour_ordered<-as.vector(not_lenient_data_with_colour$Colour)
 
 ## Plot as a pdf (or a png)
 #png(paste(work,analysis_name,"/not_lenient/",analysis_name,"-not_lenient-HEATMAP.png", sep=""), height=15, width=15, res=300, units="cm")
-pdf(paste(work,analysis_name,"/not_lenient/",analysis_name,"-not_lenient-HEATMAP.pdf",sep=""))
+#pdf(paste(work,analysis_name,"/not_lenient/",analysis_name,"-not_lenient-HEATMAP.pdf",sep=""))
 
-
-#pdf("/home/niall_cooke/Documents/SpeedRun_Notes/test2.pdf")
+png(paste("/home/niall_cooke/Documents/SpeedRun_Notes/Heatmaps/Faunalizer/MAIN_FIG/",analysis_name,"-not_lenient-HEATMAP_update.png", sep=""), height=12.5, width=12.5, res=300, units="cm")
 heatmap.2(mat_data,
           trace="none",         # turns off trace lines inside the hat map
           scale="none",
@@ -119,17 +122,20 @@ heatmap.2(mat_data,
           cexCol=0.6,
           srtRow = 0,
           srtCol = 90,
-          keysize=1.25,
+          keysize=1.5,
           key.title = NULL,
           key.xlab = "f3",
           key.ylab = NULL,
+          key.xtickfun = NULL,
+          key.ytickfun = NULL,
           density.info="none",
           Rowv = TRUE,
           Colv = TRUE,
           colRow = colour_ordered,
           colCol = colour_ordered,
-          labRow = paste(as.vector(not_lenient_data_with_colour$NotLenientLabel_60),sep=""),
-          labCol = paste(as.vector(not_lenient_data_with_colour$NotLenientLabel_60),sep=""),
+          labRow = paste(as.vector(not_lenient_data_with_colour$UpdatedLenientLabel),sep=""),
+          #labCol = paste(as.vector(not_lenient_data_with_colour$NotLenientLabel_60),sep=""),
+          labCol = paste((" "),sep=""),
           #Colv=if(symm)"Rowv" else TRUE,
           dendrogram="col",
           #notecol="green",
