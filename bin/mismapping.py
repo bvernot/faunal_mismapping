@@ -66,10 +66,11 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     # bases = [b for b in bases] # if b in (a1, a2)]
 
     if len(bases) > 1:
-        print('MORE BASES')
+        if args.debug: print('Depth > 1 at position', chrom, pos)
         pass
 
     a1, a2, a3, ref_human, category = sites[(chrom, pos)]
+    #print('sites[(chrom, pos)]', sites[(chrom, pos)])
     #ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
 
     anc_base = [a1, a2]
@@ -90,9 +91,15 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     # print(bases, ref_human, a2, a3)
     # print(anc_base, der_base, a3, a4)
 
-    config_results = results['config']
+
+    ####
+    ## a "configuration" is some combination of anc, der, a3, a4
+    ## i.e. A, T, C, G
+    ## we keep stats separately for different configs because we use the substitution matrix (I think?)
     
     config = (anc_base, der_base, a3, a4)
+    config_results = results['config']
+
     if config not in config_results:
         config_results[config] = {'n_anc' : 0,
                                   'n_der' : 0,
@@ -106,43 +113,62 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     config_results[config]['n_a4'] += sum(b == a4 for b in bases)
 
 
-    if args.report_sim_truth is not None:
-        sim_results = results['sim_source']
-        for i in range(len(bases)):
-            state = ['anc_base', 'der_base', 'a3', 'a4'][[anc_base, der_base, a3, a4].index(bases[i])]
-            species = read_names[i].split('_')[0]
-            print('READ_NAMES', state, read_names[i])
+    ####
+    ## two cases where we need to loop over all reads overlapping this SNP
+    ## 1. when reporting info for each read (for debugging, for example)
+    ## 2. when checking simulated data to see what species it actually comes from
 
-            if species not in sim_results:
-                sim_results[species] = dict()
-                sim_results[species]['N'] = 0
-                sim_results[species]['anc_base'] = 0
-                sim_results[species]['der_base'] = 0
-                sim_results[species]['a3'] = 0
-                sim_results[species]['a4'] = 0
+    if args.report_sim_truth is not None or args.report_reads:
+
+        sim_results = results['sim_source']
+
+        ## loop over all reads ('bases') overlapping this site
+        for i in range(len(bases)):
+
+            state = ['anc_base', 'der_base', 'a3', 'a4'][[anc_base, der_base, a3, a4].index(bases[i])]
+
+            if args.report_reads:
+                print('READ_NAMES', state, chrom, pos, bases[i], read_names[i], sep='\t')
                 pass
 
-            sim_results[species][state] += 1
-            sim_results[species]['N'] += 1
-            # print(sim_results)
+            if args.report_sim_truth is not None:
+                species = read_names[i].split('_')[0]
+                if species not in sim_results:
+                    sim_results[species] = dict()
+                    sim_results[species]['N'] = 0
+                    sim_results[species]['anc_base'] = 0
+                    sim_results[species]['der_base'] = 0
+                    sim_results[species]['a3'] = 0
+                    sim_results[species]['a4'] = 0
+                    pass
+                sim_results[species][state] += 1
+                sim_results[species]['N'] += 1
+                # print(sim_results)
+                pass
             
             pass
+        pass
+
 
     site_results = results['sites']
-    
-    if category not in site_results:
-        site_results[category] = {'n_sites_a12' : 0,
-                                 'n_sites' : 0,
-                                 'n_der' : 0,
-                                 'n_anc' : 0,
-                                 'ref_bam' : 0,
-                                  # 'ref_nonmatch' : 0,
-                                 'n_first' : 0,
-                                 'n_second' : 0, 
-                                 'n_third' : 0,
-                                 'n_fourth' : 0,
-                                 'ref_bam_not_a3' : 0}
-        pass
+
+    ####
+    ## initialize site_results for this category (burden, etc)
+    ## 
+
+    # if False and category not in site_results:
+    #     site_results[category] = {'n_reads_a12' : 0,
+    #                              'n_reads' : 0,
+    #                              'n_der' : 0,
+    #                              'n_anc' : 0,
+    #                              'ref_bam' : 0,
+    #                               # 'ref_nonmatch' : 0,
+    #                              'n_first' : 0,
+    #                              'n_second' : 0, 
+    #                              'n_third' : 0,
+    #                              'n_fourth' : 0,
+    #                              'ref_bam_not_a3' : 0}
+    #     pass
 
 
     # ref_match = sum(b == ref for b in bases if b in (a1, a2))
@@ -157,11 +183,12 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     ref_bam_match = sum(b == ref_bam for b in bases)
     # print(bases, ref, ref_match, ref_nonmatch)
 
-    site_results[category]["n_sites_a12"] += ref_match + ref_nonmatch
+    site_results[category]["n_reads_a12"] += ref_match + ref_nonmatch
     site_results[category]["n_der"] += ref_match
     site_results[category]["n_anc"] += ref_nonmatch
 
-    site_results[category]["n_sites"] += ref_match + ref_nonmatch + third_allele + fourth_allele
+    site_results[category]["n_reads"] += ref_match + ref_nonmatch + third_allele + fourth_allele
+    site_results[category]["n_snps"] += 1
 
     site_results[category]["n_first"] += first_allele
     site_results[category]["n_second"] += second_allele
@@ -325,8 +352,8 @@ def call_bases(bam, sites,
 
         ######
         ### sometimes we want to just do random base sampling
-        if args.random_bases and len(bases) > 1:
-            random.seed(1984)
+        if not args.all_reads and len(bases) > 1:
+            # random.seed(1984)
             # print(bases, len(bases))
             i = random.sample(range(len(bases)), 1)[0]
             # print(i)
@@ -390,29 +417,60 @@ def check_range(value):
 
 
 def read_sites(sites_file, add_chr):
+
     sites = dict()
+    site_category_counts = defaultdict(int)
+    
     with open(sites_file, "rt") as sf:
         for i, line in enumerate(sf):
-            line = line.rstrip().split()
+            line = line.rstrip().split('\t')
             chrom,pos = line[0:2]
-            if i == 0 and not pos.isnumeric():
-                print('Keeping header:', line, file=sys.stderr)
-                sites['category_header'] = tuple(line[4:])
+            # if i == 0 and not pos.isnumeric():
+            if i == 0:
+                sites['category_header'] = tuple(line[6:])
+
+                print(' SNP file columns:  ', ', '.join(line), file=sys.stderr)
+                print(' Categories from SNP file:  ', ', '.join(sites['category_header']), file=sys.stderr)
+                if args.categories is not None:
+                    category_indices = [i for i,cat in enumerate(sites['category_header']) if cat in args.categories]
+                    sites['category_header'] = [sites['category_header'][i] for i in category_indices]
+                    print(' Using only these categories (from --categories):  ', ', '.join(sites['category_header']), file=sys.stderr)
+                    pass
+
+                # print('SNP file header:', file=sys.stderr)
+                # print('\t'.join(line), file=sys.stderr)
+                # print('Categories from SNP file:', file=sys.stderr, sep='\t')
+                # print('\t'.join(sites['category_header']), file=sys.stderr, sep='\t')
+
                 continue
             
             a1_der, a2_anc = line[2:4]
             ref_fasta, a1_der, a2_anc, a3 = line[2:6]
 
+            ####
+            ## "category" is stuff like burden, n_3, etc
+            ##
+            
             category = tuple(line[6:])
+
+            ## we're not always using all of the categories (--categories)
+            ## in that case, filter down to the ones we need
+
+            if args.categories is not None:
+                category = tuple(category[i] for i in category_indices)
+                pass
+
+            # print('category', category)
             
             if add_chr:
                 chrom = 'chr' + chrom
                 pass
             pos = int(pos)
             sites[(chrom,pos)] = (a1_der, a2_anc, a3, ref_fasta, category)
+            site_category_counts[category] += 1
             pass
         pass
-    return sites
+    return (sites, site_category_counts)
     
 def read_sites_og(sites_file, add_chr):
     sites = dict()
@@ -465,35 +523,90 @@ def check_dicts(third, sites):
 
 
 
-def report_stats(args, sites, results):
+def report_stats(args, sites, site_category_counts, results):
 
     site_results = results['sites']
 
     all_cats = sorted(site_results.keys())
+    print('all_cats', all_cats)
 
     all_stats_keys = site_results[all_cats[0]].keys()
-    print(all_stats_keys)
+    print('all_stats_keys', all_stats_keys)
 
     sum_stats = {k: sum(d[k] for d in site_results.values() if k in d) for k in all_stats_keys}
 
-    print(sum_stats)
+    print('sum_stats', sum_stats)
 
-    if args.by_cats:
+    if args.use_categories:
         # if 'category_header' in sites:
         print("\n")
         print('CATSITES',
               '\t'.join(sites['category_header']),
+              'nsnps_in_cat',
+              'cov_in_cat',
+              'prop_snps_in_cat',
+              'faunal_prop_b1',
+              'faunal_prop_b1_w',
+              # 'faunal_reads_b1',
               '\t'.join(all_stats_keys),
               sep='\t')
 
+        if 'coverage' in args.strategy:
+            # all_cats = [c for c,_ in sorted( ((c,int(c)) for c in all_cats),
+            #                                  key = lambda _,x : x )]
+            all_cats = [(str(x),) for x in range(-1,31)] + [('30+',), ('no-msa',), ('ensembl-fail',)]
+            all_cats = [(str(x),) for x in range(-1,31)] + [('30+',), ('only-primate-msa',), ('ensembl-filter',)]
+            baseline_cats = [(x,) for x in args.cov_baseline]
+            pass
+
+        ## average coverage in "baseline" categories
+        baseline_cov1 = sum([site_results[category]['n_reads'] / site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0]) / \
+            sum(site_category_counts[category] > 0 for category in baseline_cats)
+        ## weighted average coverage in "baseline" categories
+        baseline_cov1_w = sum([site_results[category]['n_reads'] for category in baseline_cats if site_category_counts[category] > 0]) / \
+            sum([site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0])
+        print('baseline-cov', baseline_cov1)
+        print('baseline-cov-w', baseline_cov1_w)
+
+        n_reads_faunal = 0
+        n_reads_faunal_w = 0
+        n_reads_total = 0
+        
         for category in all_cats:
+            #print(category)
+            #print(site_results[category])
+            #print(all_stats_keys)
+
+            if site_category_counts[category] > 0 and site_results[category]['n_reads'] > 0:
+                cat_cov = site_results[category]['n_reads'] / site_category_counts[category]
+                prop_faunal_cov   = max(0, (cat_cov - baseline_cov1)) / cat_cov
+                prop_faunal_cov_w = max(0, (cat_cov - baseline_cov1_w)) / cat_cov
+                prop_faunal_cov   = (cat_cov - baseline_cov1) / cat_cov
+                prop_faunal_cov_w = (cat_cov - baseline_cov1_w) / cat_cov
+                n_reads_faunal += site_results[category]['n_reads'] * prop_faunal_cov
+                n_reads_faunal_w += site_results[category]['n_reads'] * prop_faunal_cov_w
+                n_reads_total += site_results[category]['n_reads']
+                n_reads_faunal_in_cat = site_results[category]['n_reads'] * prop_faunal_cov
+            else:
+                prop_faunal_cov = '-'
+                prop_faunal_cov_w = '-'
+                pass
+                
             print('CATSITES',
-                  '\t'.join(category), 
-                  '\t'.join(site_results[category][k] for k in all_stats_keys),
+                  '\t'.join(category),
+                  site_category_counts[category],
+                  site_results[category]['n_reads'] / site_category_counts[category] if site_category_counts[category] > 0 else '-',
+                  site_results[category]['n_snps'] / site_category_counts[category] if site_category_counts[category] > 0 else '-',
+                  prop_faunal_cov,
+                  prop_faunal_cov_w,
+                  '\t'.join(str(site_results[category][k]) for k in all_stats_keys),
+                  # '\t'.join(str(site_results[category][k]) for k in all_stats_keys), THIS DIDN'T HAVE STR() BEFORE, BUT IT WORKED?? WHY???
                   sep='\t')
             pass
         pass
-    
+
+    print('cov-estimates', int(n_reads_faunal), n_reads_total, n_reads_faunal / n_reads_total)
+    print('cov-estimates-w', int(n_reads_faunal_w), n_reads_total, n_reads_faunal_w / n_reads_total)
 
     print('\n')
     print('ALLSITES', '\t'.join(all_stats_keys), sep='\t')
@@ -504,6 +617,7 @@ def report_stats(args, sites, results):
     ######
     ## very basic stats (anc, der, a3, a4)
 
+    ## config
     config_results = results['config']
     all_cats = sorted(config_results.keys())
     all_stats_keys = config_results[all_cats[0]].keys()
@@ -541,6 +655,10 @@ def report_stats(args, sites, results):
         print('\n')
         print('SIMS_SUM', '\t'.join(args.report_sim_truth), sep='\t')
         print('SIMS_SUM', '\t'.join(str(sim_results[spc]['N'] if spc in sim_results else 0) for spc in args.report_sim_truth), sep='\t')
+
+        spc_sum = sum((sim_results[spc]['N'] if spc in sim_results else 0) for spc in args.report_sim_truth)
+        print('SIMS_PROP', '\t'.join(args.report_sim_truth), sep='\t')
+        print('SIMS_PROP', '\t'.join(str(sim_results[spc]['N']/spc_sum if spc in sim_results else 0) for spc in args.report_sim_truth), sep='\t')
 
         print('\n')
         print(sim_results)
@@ -741,8 +859,8 @@ def calc_lik(args, sites, config_results, subs):
 
 def compute_subs_probs(subs_matrix):
     subs_probs = dict()
-    print('Substitution matrix + probabilities')
-    print(subs_matrix)
+    print(' Substitution matrix + probabilities')
+    if args.debug: print('subs_matrix', subs_matrix)
     for b1 in list('ACGT'):
         s = sum(subs_matrix[(b1,b2)] for b2 in list('ACGT'))
         for b2 in list('ACGT'):
@@ -757,31 +875,39 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Call alleles from a BAM file using various criteria")
     parser.add_argument("--bam", help="BAM file to sample from", required=True)
     parser.add_argument("--chrom", help="Chromosome to sample from")
-    # parser.add_argument("--strategy", help="How to 'genotype'?", choices=["random", "majority", "pileup", "none"], required=True)
-    parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
-    parser.add_argument("--seed", help="Set seed for random allele sampling [random]")
+    # parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
+    parser.add_argument("--seed", help="Set seed for random allele sampling [random]", type=int)
     # parser.add_argument("--mincov", help="Minimum coverage", type=int, default=1)
-    parser.add_argument("--minbq", help="Minimum base quality", type=int, default=13)
-    parser.add_argument("--minmq", help="Minimum read mapping quality", type=int, default=0)
-    parser.add_argument("--minlen", help="Minimum read length", type=int, default=35)
+    parser.add_argument("--minbq", help="Minimum base quality (default 13)", type=int, default=13)
+    parser.add_argument("--minmq", help="Minimum read mapping quality (default 25)", type=int, default=25)
+    parser.add_argument("--minlen", help="Minimum read length (default 35)", type=int, default=35)
     parser.add_argument("--add-chr", help="Add 'chr' to the beginining of every site's chromosome, to match bam file.", action='store_true')
-    parser.add_argument("--sample-name", help="Sample name to put in a VCF header")
-    parser.add_argument("--output", help="Output file name")
-    parser.add_argument("--sites", help="Restrict output to this list of sites (chrom, 1 based pos)")
+    parser.add_argument("--sample-name", help="Add sample ID as an additional column to output tables [NEEDS TO BE IMPLEMENTED!]")
+    parser.add_argument("--output", help="Output file name [NOT SURE IF WE USE THIS? COULD BE OUTPUT BASE?]")
+    parser.add_argument("--sites", help="Restrict output to this list of sites (see documentation for file format)")
     # parser.add_argument("--flush", help="Print to file every N bases", type=int, default=100000)
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
     parser.add_argument("--lik-method", help="Method for computing likelihood (devel)", type=int, default=0)
-    parser.add_argument("--third_file", help="Defines which nucleotide is the third allele")
-    parser.add_argument("--random-bases", help="Restricts analysis to a random read at each site.", action='store_true')
+    # parser.add_argument("--third_file", help="Defines which nucleotide is the third allele")
+    parser.add_argument("--all-reads", help="Use all reads (default is to do random read sampling at each SNP)", action='store_true')
     parser.add_argument("--step", help="Step for grid likelihood search", type=float, default=0.01)
     parser.add_argument("--breaks-anc-der", help="Explicit breaks for grid likelihood search (anc and der proportions)", nargs='+', type=float, default=None)
     parser.add_argument("--breaks-a4", help="Explicit breaks for grid likelihood search (a4 allele proportion)", nargs='+', type=float, default=None)
+    parser.add_argument("--report-reads", help="Report base state (ancestral, derived, a3, a4) for every read, along with read name. Mostly for debugging.", action='store_true')
     parser.add_argument("--report-sim-truth",
                         help='Try to parse the simulated species from a read name, and report the "truth". ' +
                         'Assumes format "species_rest_of_name". Give a list of species to report.',
                         nargs = '+', default = None)
     # parser.add_argument("--by-cats", help="Print statistics for each SNP category", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--by-cats", help="Print statistics for each SNP category", action='store_true')
+    parser.add_argument("-use-cats", "--use-categories", help="Print statistics for each SNP category (categories taken from columns 6+ in SNP file; e.g. b_3 [mammalian diversity])", action='store_true')
+    parser.add_argument('-cats', "--categories", help="Use these categories (subset of columns from header)", nargs = '+', default = None)
+    parser.add_argument('-cov-baseline', "--cov-baseline", help="Use these category states to calculate a coverage baseline (mostly debugging)", nargs = '+', default = [str(x) for x in range(14,29)] + ['30+', 'only-primate-msa'])
+    parser.add_argument('-debug', "--debug", help="Print some (confusing) debugging information.", action='store_true')
+    parser.add_argument("--strategy", help="How to calculate faunal mismaping proportions?",
+                        choices=["likelihood", "derived-alleles", "coverage", "none"],
+                        required=False,
+                        nargs='+',
+                        default=['derived-alleles'])
 
 
     args = parser.parse_args()
@@ -808,10 +934,17 @@ if __name__ == "__main__":
     #     pass
 
 
+    ###########
+    ## DO WE EVER WANT TO RUN THIS PROGRAM WITHOUT A SET OF SITES TO CONSIDER??
+    ##
+    
     if args.sites is not None:
-        sites = read_sites(args.sites, args.add_chr)
+        print('\nReading SNP file..', file=sys.stderr)
+        sites, site_category_counts = read_sites(args.sites, args.add_chr)
+        # print('all sites', sites)
     else:
         sites = None
+        site_category_counts = None
         pass
 
     # check_dicts(third, sites)
@@ -820,23 +953,42 @@ if __name__ == "__main__":
     results = dict()
     results['subs_matrix'] = dict()
     results['config'] = dict()
-    results['sites'] = dict()
     results['sim_source'] = dict()
-    
+
+    results['sites'] = dict()
+    results['sites'] = defaultdict(lambda : dict({'n_reads_a12' : 0,
+                                                  'n_reads' : 0,
+                                                  'n_snps' : 0,
+                                                  'n_der' : 0,
+                                                  'n_anc' : 0,
+                                                  'ref_bam' : 0,
+                                                  # 'ref_nonmatch' : 0,
+                                                  'n_first' : 0,
+                                                  'n_second' : 0,
+                                                  'n_third' : 0,
+                                                  'n_fourth' : 0,
+                                                  'ref_bam_not_a3' : 0}))
+
     # call_fun, out_fun, 
     # call_bases(bam, args.mincov,
     #            args.minbq, args.minmq, args.minlen,
     #            args.chrom, sites, args.flush, args.limit,
     #            args.random_bases, third, subs = subs_matrix)
+    print('\nProcessing bam file..', file=sys.stderr)
     call_bases(bam = bam,
                sites = sites,
                # third = third,
                results = results)
 
+    print('\nComputing substitution matrix..', file=sys.stderr)
     subs_probs = compute_subs_probs(results['subs_matrix'])
-            
 
-    report_stats(args, sites, results)
-    calc_lik(args, sites, results['config'], subs_probs)
+    print('\nReporting basic statistics..', file=sys.stderr)
+    report_stats(args, sites, site_category_counts, results)
+
+    if 'likelihood' in args.strategy:
+        print('\nCalculating maximum likelihood mismapping estimate..', file=sys.stderr)
+        calc_lik(args, sites, results['config'], subs_probs)
+        pass
 
     pass
