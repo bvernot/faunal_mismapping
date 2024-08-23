@@ -559,7 +559,9 @@ def report_stats(args, sites, site_category_counts, results):
             baseline_cats = [(x,) for x in args.cov_baseline]
             pass
 
+        ## TODO - THIS FAILS IF THERE'S LITERALLY NO DNA, I THINK?
         ## average coverage in "baseline" categories
+        print([(site_category_counts[category], category) for category in baseline_cats])
         baseline_cov1 = sum([site_results[category]['n_reads'] / site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0]) / \
             sum(site_category_counts[category] > 0 for category in baseline_cats)
         ## weighted average coverage in "baseline" categories
@@ -603,10 +605,11 @@ def report_stats(args, sites, site_category_counts, results):
                   # '\t'.join(str(site_results[category][k]) for k in all_stats_keys), THIS DIDN'T HAVE STR() BEFORE, BUT IT WORKED?? WHY???
                   sep='\t')
             pass
-        pass
 
-    print('cov-estimates', int(n_reads_faunal), n_reads_total, n_reads_faunal / n_reads_total)
-    print('cov-estimates-w', int(n_reads_faunal_w), n_reads_total, n_reads_faunal_w / n_reads_total)
+        print('cov-estimates', int(n_reads_faunal), n_reads_total, n_reads_faunal / n_reads_total)
+        print('cov-estimates-w', int(n_reads_faunal_w), n_reads_total, n_reads_faunal_w / n_reads_total)
+
+        pass
 
     print('\n')
     print('ALLSITES', '\t'.join(all_stats_keys), sep='\t')
