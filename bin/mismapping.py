@@ -904,7 +904,7 @@ if __name__ == "__main__":
     # parser.add_argument("--by-cats", help="Print statistics for each SNP category", action=argparse.BooleanOptionalAction)
     parser.add_argument("-use-cats", "--use-categories", help="Print statistics for each SNP category (categories taken from columns 6+ in SNP file; e.g. b_3 [mammalian diversity])", action='store_true')
     parser.add_argument('-cats', "--categories", help="Use these categories (subset of columns from header)", nargs = '+', default = None)
-    parser.add_argument('-cov-baseline', "--cov-baseline", help="Use these category states to calculate a coverage baseline (mostly debugging)", nargs = '+', default = [str(x) for x in range(14,29)] + ['30+', 'only-primate-msa'])
+    parser.add_argument('-cov-baseline', "--cov-baseline", help="Use these category states to calculate a coverage baseline (mostly debugging)", nargs = '+', default = [str(x) for x in range(14,30)] + ['30+', 'only-primate-msa'])
     parser.add_argument('-debug', "--debug", help="Print some (confusing) debugging information.", action='store_true')
     parser.add_argument("--strategy", help="How to calculate faunal mismaping proportions?",
                         choices=["likelihood", "derived-alleles", "coverage", "none"],
