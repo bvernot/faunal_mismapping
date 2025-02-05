@@ -73,6 +73,9 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     #print('sites[(chrom, pos)]', sites[(chrom, pos)])
     #ref_control, _, _, ref_human, a3, *flag = third_sites[(chrom,pos)]
 
+    ######
+    ## when using hominin diagnostic positions, the ancestral base is by default the non-human allele
+    
     anc_base = [a1, a2]
     anc_base.remove(ref_human)
     if len(anc_base) != 1:
@@ -82,9 +85,12 @@ def process_site(chrom, pos, sites, ref_bam, bases,
 
     der_base = ref_human
 
+    ####
+    ## get the 4th allele
+
     a4 = [b for b in ['A', 'C', 'G', 'T'] if b not in [anc_base, der_base, a3]]
     if len(a4) != 1:
-        print('WERID ERROR')
+        print('WERID ERROR when identifying a4', a4)
         pass
     a4 = a4[0]
     
@@ -149,6 +155,8 @@ def process_site(chrom, pos, sites, ref_bam, bases,
             pass
         pass
 
+    ####
+    ## site results are by category (burden, etc)
 
     site_results = results['sites']
 
@@ -182,6 +190,9 @@ def process_site(chrom, pos, sites, ref_bam, bases,
     fourth_allele = sum(b == b for b in bases if b not in (a1, a2, a3))
     ref_bam_match = sum(b == ref_bam for b in bases)
     # print(bases, ref, ref_match, ref_nonmatch)
+
+    ####
+    ## site results are by category (burden, etc)
 
     site_results[category]["n_reads_a12"] += ref_match + ref_nonmatch
     site_results[category]["n_der"] += ref_match
@@ -260,6 +271,184 @@ def compute_subs_counts(pileups, results, args, reference_name):
     return
 
 
+def read_eigen(eigen_base, sites):
+
+    indfile = open(eigen_base + '.ind', 'rt')
+    snpfile = open(eigen_base + '.snp', 'rt')
+    genofile = open(eigen_base + '.geno', 'rt')
+
+    #####
+    ## read indfile
+    #####
+
+    print('Reading .ind file..', file=sys.stderr)
+
+    all_inds = dict()
+    all_inds_byrow = list()
+    all_inds_bypop = dict()
+    for rownum, line in enumerate(indfile):
+        line = line.strip().split()
+        ind, sex, pop = line
+        all_inds[ind] = (rownum, sex, pop)
+        all_inds_byrow += [(ind, sex, pop)]
+        if pop not in all_inds_bypop: all_inds_bypop[pop] = []
+        all_inds_bypop[pop] += [(rownum, sex, ind)]
+        pass
+    #print(all_inds)
+    #print(all_inds_byrow)
+    #print(all_inds_bypop)
+
+    #####
+    ## read snpfile
+    #####
+
+    # rs2932579     1        1.626781       151914545 G A
+    # rs10932916     2        2.330636       222389971 G A
+
+    print('Reading .snp file..', file=sys.stderr)
+ 
+    all_snps = dict()
+    all_snps_byrow = list()
+    snp_not_found = 0
+    for rownum, line in enumerate(snpfile):
+        line = line.strip().split()
+        rsid, chrom, _, pos, a1, a2 = line
+        pos = int(pos)
+
+        # sites[(chrom,pos)] = (a1_der, a2_anc, a3, ref_fasta, category)
+        all_snps[(chrom,pos)] = (rownum, a1, a2)
+        all_snps_byrow += [(chrom, pos, a1, a2)]
+
+        if (chrom,pos) not in sites:
+            # print('snp not found in sites file', (chrom, pos))
+            snp_not_found += 1
+            pass
+        pass
+    print('.. finished reading .snp file. %d/%d SNPs were not found in the --sites file' % (snp_not_found, rownum+1), file=sys.stderr)
+    # print(all_snps)
+    # print(all_snps_byrow)
+
+    
+    #####
+    ## read genofile
+    #####
+
+    ## rows are SNPs, columns are individuals
+    # 09002990990
+    # 22020900002
+    # 29022922929
+
+
+    print('Reading .geno file..', file=sys.stderr)
+ 
+#    all_genos_byind = {ind_data[0]:[] for ind_data in all_inds_byrow}
+    all_genos_bysnp = dict()
+    # print(all_genos_byind)
+
+    for snpnum, line in enumerate(genofile):
+        line = line.strip()
+        all_genos_bysnp[snpnum] = line
+
+        # for indnum, geno in enumerate(line):
+        #     # allele = all_snps_byrow[snpnum][3] if geno == 0 else ... [ACTUALLY ONLY NEED TO KNOW IF IT'S MISSING?]
+        #     ind_id = all_inds_byrow[indnum][0]
+        #     all_genos_byind[ind_id] += geno
+        #     pass
+
+        if snpnum % 100000 == 0: print('.',end='',flush=True)
+        pass
+    print('.. finished reading .geno')
+    # print(all_genos_byind)
+
+
+    #return (all_snps, all_genos_byind,)
+    return (all_snps, all_inds, all_genos_bysnp,)
+    
+
+# call_fun, out_fun, 
+#def call_bases(bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third, subs):
+# @profile
+def call_bases_eigen(eigen, sites,
+               # third,
+               results):
+    """Sample bases in a given region of the genome based on the pileup
+    of reads. If no coordinates were specified, sample from the whole BAM file.
+    """
+    # i = 0
+
+    all_snps, all_inds, all_genos_bysnp = eigen
+    # all_snps[(chrom,pos)] = (rownum, a1, a2)
+    # all_genos_byind[ind_id] += geno ## this is a list of 0,1,2,9, all snps in order; key is the individual ID
+    # all_genos_bysnp[snp_row] = geno_row ## this is just the line of genotypes from the .geno file (index the line by ind_num)
+    # all_inds[ind] = (rownum, sex, pop)
+
+    ind_num = all_inds[args.indID][0]
+
+    ## loop over each snp in the eigenstrat file
+    ## check to make sure that it exists in sites
+    ## if it does, process the geno for it, for a given individual?
+    ## this is all way slower than it has to be...
+    ## if we just rewrote the software
+
+    missing_chroms = dict()
+
+    for chrom, pos in all_snps.keys():
+
+        # print('processing', chrom, pos)
+        
+        if args.limit is not None and i > args.limit: break
+
+        ## keep track of if this pileup column is actually in the sites we want to use
+        if chrom not in missing_chroms: missing_chroms[chrom] = [0,0]
+        missing_chroms[chrom][1] += 1
+        if (chrom, pos) not in sites:
+            # print('skipping snp that is not in sites:', chrom, pos, file=sys.stderr)
+            missing_chroms[chrom][0] += 1
+            continue
+
+        ## get the two expected alleles, and the genotype
+        rownum, a1, a2 = all_snps[(chrom,pos)]
+        # print(rownum, a1, a2)
+        # geno = all_genos_byind[args.indID][rownum]
+        geno = all_genos_bysnp[rownum][ind_num]
+        # print(geno, args.indID)
+
+        if geno == '9':
+            continue
+
+        if geno == '0':
+            bases = a2
+        elif geno == '1':
+            i = random.sample((a1,a2), 1)[0]
+            print('geno == 1', i, a1, a2)
+            bases = i
+        elif geno == '2':
+            bases = a1
+        else:
+            print('WEIRD ERROR invalid geno in eigenstrat file?', geno, chrom, pos, args.indID)
+            sys.exit()
+            pass
+            
+            
+        ######
+        ## Actually save site statistics
+        process_site(chrom,
+                     pos,
+                     sites,
+                     '.',
+                    # get_ref_base(col), # how?
+                     bases,
+                     results,
+                     ['fake_read_name',])
+                
+        pass
+
+    for chrom, vals in missing_chroms.items():
+        print(' - Skipped %d out of %d snps on chromosome %s: %d%%' % (vals[0], vals[1], chrom, vals[0]/vals[1]*100))
+        pass
+    
+    return
+
 
 # call_fun, out_fun, 
 #def call_bases(bam, mincov, minbq, minmq, minlen, chrom, sites, flush_interval, limit, random_bases, third, subs):
@@ -283,6 +472,10 @@ def call_bases(bam, sites,
                                        min_mapping_quality=args.minmq)):
 
         if args.limit is not None and i > args.limit: break
+
+        if i % 1000000 == 0:
+            print('.. %s %d : %d reads' % (col.reference_name, col.reference_pos + 1, len(results['read_names'])), file=sys.stderr, flush=True)
+            pass
 
         ## keep track of if this pileup column is actually in the sites we want to use
         col_in_sites = sites is not None and (col.reference_name, col.reference_pos + 1) in sites
@@ -506,20 +699,6 @@ def read_third_file(third_file):
             third_sites[(chrom,pos)] = (ref_control, a1, a2, ref_fasta, a3, *flag)
     return third_sites
 
-def check_dicts(third, sites):
-    sites_no_header = dict(sites)
-    del sites_no_header['category_header']
-    set1 = set(third.keys())
-    set2 = set(sites_no_header.keys())
-    merged = set1 ^ set2
-    assert merged == set()
-
-    for key in third: #key == chrom, pos
-        _, a1, a2, _, _, *_ = third[key]
-        assert a1 == sites[key][0]
-        assert a2 == sites[key][1]
-        pass
-    pass
 
 
 
@@ -549,6 +728,7 @@ def report_stats(args, sites, site_category_counts, results):
               'faunal_prop_b1_w',
               # 'faunal_reads_b1',
               '\t'.join(all_stats_keys),
+              'indID',
               sep='\t')
 
         if 'coverage' in args.strategy:
@@ -602,6 +782,7 @@ def report_stats(args, sites, site_category_counts, results):
                   prop_faunal_cov,
                   prop_faunal_cov_w,
                   '\t'.join(str(site_results[category][k]) for k in all_stats_keys),
+                  args.indID if args.indID is not None else '.',
                   # '\t'.join(str(site_results[category][k]) for k in all_stats_keys), THIS DIDN'T HAVE STR() BEFORE, BUT IT WORKED?? WHY???
                   sep='\t')
             pass
@@ -874,9 +1055,35 @@ def compute_subs_probs(subs_matrix):
     return subs_probs
 
 
+def init_results():
+    results = dict()
+    results['subs_matrix'] = dict()
+    results['config'] = dict()
+    results['sim_source'] = dict()
+
+    results['sites'] = dict()
+    results['sites'] = defaultdict(lambda : dict({'n_reads_a12' : 0,
+                                                  'n_reads' : 0,
+                                                  'n_snps' : 0,
+                                                  'n_der' : 0,
+                                                  'n_anc' : 0,
+                                                  'ref_bam' : 0,
+                                                  # 'ref_nonmatch' : 0,
+                                                  'n_first' : 0,
+                                                  'n_second' : 0,
+                                                  'n_third' : 0,
+                                                  'n_fourth' : 0,
+                                                  'ref_bam_not_a3' : 0}))
+    return results
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Call alleles from a BAM file using various criteria")
-    parser.add_argument("--bam", help="BAM file to sample from", required=True)
+    parser.add_argument("--bam", help="BAM file to sample from", required=False)
+    parser.add_argument("--eigen-base", help="EIGENSTRAT file to sample from [give the base path, without .snp, .ind, etc]", required=False)
+    parser.add_argument("--sites", help="List of sites to consider (see documentation for file format)", required = True)
+    parser.add_argument("--indID", help="When processing an eigenstrat file, calculate stats on this individual.")
     parser.add_argument("--chrom", help="Chromosome to sample from")
     # parser.add_argument("--proportion", help="Required proportion of the majority allele", type=check_range, default=0.5)
     parser.add_argument("--seed", help="Set seed for random allele sampling [random]", type=int)
@@ -887,7 +1094,6 @@ if __name__ == "__main__":
     parser.add_argument("--add-chr", help="Add 'chr' to the beginining of every site's chromosome, to match bam file.", action='store_true')
     parser.add_argument("--sample-name", help="Add sample ID as an additional column to output tables [NEEDS TO BE IMPLEMENTED!]")
     parser.add_argument("--output", help="Output file name [NOT SURE IF WE USE THIS? COULD BE OUTPUT BASE?]")
-    parser.add_argument("--sites", help="Restrict output to this list of sites (see documentation for file format)")
     # parser.add_argument("--flush", help="Print to file every N bases", type=int, default=100000)
     parser.add_argument("--limit", help="Stop after processing N bases from bam", type=int, default=None)
     parser.add_argument("--lik-method", help="Method for computing likelihood (devel)", type=int, default=0)
@@ -915,6 +1121,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.bam is None and args.eigen_base is None:
+        print('Requires either a bam (--bam) or an eigenstrat (--eigen-base) file.')
+        sys.exit()
+        pass
 
     if args.output is None:
         new_file = True
@@ -924,74 +1134,74 @@ if __name__ == "__main__":
         output = open(args.output, "w" if new_file else "a")
         pass
 
-    bam = pysam.AlignmentFile(args.bam)
-
-    if not bam.has_index():
-        print("BAM file index is missing", file=sys.stderr)
-        sys.exit(1)
-        pass
-
-
-    # if args.third_file:
-    #     third = read_third_file(args.third_file)
-    #     pass
-
-
-    ###########
     ## DO WE EVER WANT TO RUN THIS PROGRAM WITHOUT A SET OF SITES TO CONSIDER??
-    ##
+
+    print('\nReading SNP file..', file=sys.stderr)
+    sites, site_category_counts = read_sites(args.sites, args.add_chr)
+    # sites[(chrom,pos)] = (a1_der, a2_anc, a3, ref_fasta, category)
+    # site_category_counts[category] += 1
+    # print('all sites', sites)
+
     
-    if args.sites is not None:
-        print('\nReading SNP file..', file=sys.stderr)
-        sites, site_category_counts = read_sites(args.sites, args.add_chr)
-        # print('all sites', sites)
+    results = init_results()
+
+    if args.bam is not None:
+
+        bam = pysam.AlignmentFile(args.bam)
+        
+        if not bam.has_index():
+            print("BAM file index is missing", file=sys.stderr)
+            sys.exit(1)
+            pass
+        
+        print('\nProcessing bam file..', file=sys.stderr)
+        call_bases(bam = bam,
+                   sites = sites,
+                   # third = third,
+                   results = results)
+
     else:
-        sites = None
-        site_category_counts = None
+        print('\nReading eigenstrat file..', file=sys.stderr)
+        eigen = read_eigen(args.eigen_base, sites)
+        # all_snps, all_genos_byind = eigen
+
+        ## check to see how many of the sites snps have data in the eigenstrat file
+        # all_snps, all_genos_byind = eigen
+        all_snps, all_inds, all_genos_bysnp = eigen
+        
+        not_in_eigen = 0
+        for snp in sites.keys():
+            if snp == 'category_header': continue ## I am dumb
+            if snp not in all_snps:
+                not_in_eigen += 1
+                # print(snp, sites[snp])
+                site_category_counts[sites[snp][4]] -= 1
+                pass
+            pass
+        print('\nWARNING %d sites snps not in eigenstrat [probably X chr?]' % not_in_eigen)
+        
+        print('\nProcessing eigenstrat file..', file=sys.stderr)
+        call_bases_eigen(eigen,
+                   sites = sites,
+                   # third = third,
+                   results = results)
         pass
-
-    # check_dicts(third, sites)
-
-    # subs_matrix = dict()
-    results = dict()
-    results['subs_matrix'] = dict()
-    results['config'] = dict()
-    results['sim_source'] = dict()
-
-    results['sites'] = dict()
-    results['sites'] = defaultdict(lambda : dict({'n_reads_a12' : 0,
-                                                  'n_reads' : 0,
-                                                  'n_snps' : 0,
-                                                  'n_der' : 0,
-                                                  'n_anc' : 0,
-                                                  'ref_bam' : 0,
-                                                  # 'ref_nonmatch' : 0,
-                                                  'n_first' : 0,
-                                                  'n_second' : 0,
-                                                  'n_third' : 0,
-                                                  'n_fourth' : 0,
-                                                  'ref_bam_not_a3' : 0}))
-
-    # call_fun, out_fun, 
-    # call_bases(bam, args.mincov,
-    #            args.minbq, args.minmq, args.minlen,
-    #            args.chrom, sites, args.flush, args.limit,
-    #            args.random_bases, third, subs = subs_matrix)
-    print('\nProcessing bam file..', file=sys.stderr)
-    call_bases(bam = bam,
-               sites = sites,
-               # third = third,
-               results = results)
-
-    print('\nComputing substitution matrix..', file=sys.stderr)
-    subs_probs = compute_subs_probs(results['subs_matrix'])
-
+        
     print('\nReporting basic statistics..', file=sys.stderr)
     report_stats(args, sites, site_category_counts, results)
 
+    
+    ######
+    ## if we're doing the likelihood method
+    
     if 'likelihood' in args.strategy:
+
+        print('\nComputing substitution matrix..', file=sys.stderr)
+        subs_probs = compute_subs_probs(results['subs_matrix'])
+
         print('\nCalculating maximum likelihood mismapping estimate..', file=sys.stderr)
         calc_lik(args, sites, results['config'], subs_probs)
+
         pass
 
     pass
