@@ -716,17 +716,18 @@ def report_stats(args, sites, site_category_counts, results):
 
     site_results = results['sites']
 
-    print(site_results)
+    if args.debug: print('DEBUG: In report_stats()')
+    if args.debug: print('DEBUG: site_results:', site_results)
 
     all_cats = sorted(site_results.keys())
-    print('all_cats', all_cats)
+    if args.debug: print('DEBUG: all_cats:', all_cats)
 
     all_stats_keys = site_results[all_cats[0]].keys()
-    print('all_stats_keys', all_stats_keys)
+    if args.debug: print('DEBUG: all_stats_keys:', all_stats_keys)
 
     sum_stats = {k: sum(d[k] for d in site_results.values() if k in d) for k in all_stats_keys}
 
-    print('sum_stats', sum_stats)
+    if args.debug: print('DEBUG: sum_stats:', sum_stats)
 
     if args.use_categories:
         # if 'category_header' in sites:
