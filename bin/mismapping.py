@@ -576,6 +576,8 @@ def call_bases(bam, sites,
         # ))
 
         pass
+
+    print('Processed %d reads' % i, file=sys.stderr, flush=True)
     
     return
 
@@ -621,13 +623,21 @@ def read_sites(sites_file, add_chr):
             # if i == 0 and not pos.isnumeric():
             if i == 0:
                 sites['category_header'] = tuple(line[6:])
+                arg_cats = list(sites['category_header']) # save this in case we need to refer to them
 
                 print(' SNP file columns:  ', ', '.join(line), file=sys.stderr)
                 print(' Categories from SNP file:  ', ', '.join(sites['category_header']), file=sys.stderr)
+
                 if args.categories is not None:
                     category_indices = [i for i,cat in enumerate(sites['category_header']) if cat in args.categories]
                     sites['category_header'] = [sites['category_header'][i] for i in category_indices]
                     print(' Using only these categories (from --categories):  ', ', '.join(sites['category_header']), file=sys.stderr)
+                    if len(sites['category_header']) != len(args.categories):
+                        print(' ERROR: Some requested categories not found in SNP file?')
+                        print('  - Requested:', args.categories)
+                        print('  - In file  :', arg_cats)
+                        sys.exit(-1)
+                        pass
                     pass
 
                 # print('SNP file header:', file=sys.stderr)
@@ -665,29 +675,29 @@ def read_sites(sites_file, add_chr):
         pass
     return (sites, site_category_counts)
     
-def read_sites_og(sites_file, add_chr):
-    sites = dict()
-    with open(sites_file, "rt") as sf:
-        for i, line in enumerate(sf):
-            line = line.rstrip().split()
-            chrom,pos = line[0:2]
-            if i == 0 and not pos.isnumeric():
-                print('Keeping header:', line, file=sys.stderr)
-                sites['category_header'] = tuple(line[4:])
-                continue
+# def read_sites_og(sites_file, add_chr):
+#     sites = dict()
+#     with open(sites_file, "rt") as sf:
+#         for i, line in enumerate(sf):
+#             line = line.rstrip().split()
+#             chrom,pos = line[0:2]
+#             if i == 0 and not pos.isnumeric():
+#                 print('Keeping header:', line, file=sys.stderr)
+#                 sites['category_header'] = tuple(line[4:])
+#                 continue
             
-            a1_der, a2_anc = line[2:4]
+#             a1_der, a2_anc = line[2:4]
 
-            category = tuple(line[4:])
+#             category = tuple(line[4:])
             
-            if add_chr:
-                chrom = 'chr' + chrom
-                pass
-            pos = int(pos)
-            sites[(chrom,pos)] = (a1_der, a2_anc, category)
-            pass
-        pass
-    return sites
+#             if add_chr:
+#                 chrom = 'chr' + chrom
+#                 pass
+#             pos = int(pos)
+#             sites[(chrom,pos)] = (a1_der, a2_anc, category)
+#             pass
+#         pass
+#     return sites
     
 def read_third_file(third_file):
     third_sites = dict()
@@ -705,6 +715,8 @@ def read_third_file(third_file):
 def report_stats(args, sites, site_category_counts, results):
 
     site_results = results['sites']
+
+    print(site_results)
 
     all_cats = sorted(site_results.keys())
     print('all_cats', all_cats)
@@ -1186,7 +1198,14 @@ if __name__ == "__main__":
                    # third = third,
                    results = results)
         pass
-        
+
+    # print('results', len(results['sites']), results['sites'])
+    if len(results['sites']) == 0:
+        print('\nERROR: No reads overlapping sites.')
+        if args.limit is not None: print(' If using --limit, try using a larger number?')
+        sys.exit()
+        pass
+    
     print('\nReporting basic statistics..', file=sys.stderr)
     report_stats(args, sites, site_category_counts, results)
 
