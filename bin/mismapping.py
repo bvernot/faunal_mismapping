@@ -277,6 +277,8 @@ def read_eigen(eigen_base, sites):
     snpfile = open(eigen_base + '.snp', 'rt')
     genofile = open(eigen_base + '.geno', 'rt')
 
+    
+    ###########################
     #####
     ## read indfile
     #####
@@ -298,6 +300,8 @@ def read_eigen(eigen_base, sites):
     #print(all_inds_byrow)
     #print(all_inds_bypop)
 
+    
+    ###########################
     #####
     ## read snpfile
     #####
@@ -329,6 +333,7 @@ def read_eigen(eigen_base, sites):
     # print(all_snps_byrow)
 
     
+    ###########################
     #####
     ## read genofile
     #####
@@ -370,7 +375,7 @@ def read_eigen(eigen_base, sites):
 # @profile
 def call_bases_eigen(eigen, sites,
                # third,
-               results):
+                     results, indID):
     """Sample bases in a given region of the genome based on the pileup
     of reads. If no coordinates were specified, sample from the whole BAM file.
     """
@@ -382,7 +387,7 @@ def call_bases_eigen(eigen, sites,
     # all_genos_bysnp[snp_row] = geno_row ## this is just the line of genotypes from the .geno file (index the line by ind_num)
     # all_inds[ind] = (rownum, sex, pop)
 
-    ind_num = all_inds[args.indID][0]
+    ind_num = all_inds[indID][0]
 
     ## loop over each snp in the eigenstrat file
     ## check to make sure that it exists in sites
@@ -409,9 +414,9 @@ def call_bases_eigen(eigen, sites,
         ## get the two expected alleles, and the genotype
         rownum, a1, a2 = all_snps[(chrom,pos)]
         # print(rownum, a1, a2)
-        # geno = all_genos_byind[args.indID][rownum]
+        # geno = all_genos_byind[indID][rownum]
         geno = all_genos_bysnp[rownum][ind_num]
-        # print(geno, args.indID)
+        # print(geno, indID)
 
         if geno == '9':
             continue
@@ -425,7 +430,7 @@ def call_bases_eigen(eigen, sites,
         elif geno == '2':
             bases = a1
         else:
-            print('WEIRD ERROR invalid geno in eigenstrat file?', geno, chrom, pos, args.indID)
+            print('WEIRD ERROR invalid geno in eigenstrat file?', geno, chrom, pos, indID)
             sys.exit()
             pass
             
@@ -712,7 +717,7 @@ def read_third_file(third_file):
 
 
 
-def report_stats(args, sites, site_category_counts, results):
+def report_stats(args, sites, site_category_counts, results, indID = None):
 
     site_results = results['sites']
 
@@ -795,7 +800,7 @@ def report_stats(args, sites, site_category_counts, results):
                   prop_faunal_cov,
                   prop_faunal_cov_w,
                   '\t'.join(str(site_results[category][k]) for k in all_stats_keys),
-                  args.indID if args.indID is not None else '.',
+                  indID if indID is not None else '.',
                   # '\t'.join(str(site_results[category][k]) for k in all_stats_keys), THIS DIDN'T HAVE STR() BEFORE, BUT IT WORKED?? WHY???
                   sep='\t')
             pass
@@ -1092,9 +1097,9 @@ def init_results():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Call alleles from a BAM file using various criteria")
-    parser.add_argument("--bam", help="BAM file to sample from", required=False)
-    parser.add_argument("--eigen-base", help="EIGENSTRAT file to sample from [give the base path, without .snp, .ind, etc]", required=False)
+    parser = argparse.ArgumentParser(description="Estimate the amount of non-human DNA that maps to the human genome for a given sample.")
+    parser.add_argument("--bam", help="BAM file mapped to the human genome", required=False)
+    parser.add_argument("--eigen-base", help="EIGENSTRAT file with samples of interest [give the base path, without .snp, .ind, etc]", required=False)
     parser.add_argument("--sites", help="List of sites to consider (see documentation for file format)", required = True)
     parser.add_argument("--indID", help="When processing an eigenstrat file, calculate stats on this individual.")
     parser.add_argument("--chrom", help="Chromosome to sample from")
@@ -1156,10 +1161,10 @@ if __name__ == "__main__":
     # print('all sites', sites)
 
     
-    results = init_results()
 
     if args.bam is not None:
-
+        
+        results = init_results()
         bam = pysam.AlignmentFile(args.bam)
         
         if not bam.has_index():
@@ -1172,43 +1177,65 @@ if __name__ == "__main__":
                    sites = sites,
                    # third = third,
                    results = results)
+        
+        # print('results', len(results['sites']), results['sites'])
+        if len(results['sites']) == 0:
+            print('\nERROR: No reads overlapping our sites.')
+            if args.limit is not None: print(' If using --limit, try using a larger number?')
+            sys.exit()
+            pass
+        
+        print('\nReporting basic statistics..', file=sys.stderr)
+        report_stats(args, sites, site_category_counts, results)
+        
 
     else:
+
         print('\nReading eigenstrat file..', file=sys.stderr)
         eigen = read_eigen(args.eigen_base, sites)
-        # all_snps, all_genos_byind = eigen
 
         ## check to see how many of the sites snps have data in the eigenstrat file
-        # all_snps, all_genos_byind = eigen
         all_snps, all_inds, all_genos_bysnp = eigen
+        print(all_inds)
         
         not_in_eigen = 0
         for snp in sites.keys():
-            if snp == 'category_header': continue ## I am dumb
+            if snp == 'category_header': continue ## I am a little dumb, and am storing random data in the sites dictionary (i.e. key is 'category_header' instead of ('1', 1000))
             if snp not in all_snps:
                 not_in_eigen += 1
                 # print(snp, sites[snp])
+                ## decrease the denominator for this category: sites[snp] is e.g. ('C', 'G', 'A', 'C', ('no-msa',)), category here is ('no-msa',)
+                ## DO WE ALWAYS WANT TO DECREASE THE COUNTS? I THINK MAYBE? BUT THIS SHOULD BE DOCUMENTED!
                 site_category_counts[sites[snp][4]] -= 1
                 pass
             pass
-        print('\nWARNING %d sites snps not in eigenstrat [probably X chr?]' % not_in_eigen)
-        
-        print('\nProcessing eigenstrat file..', file=sys.stderr)
-        call_bases_eigen(eigen,
-                   sites = sites,
-                   # third = third,
-                   results = results)
-        pass
+        print('\nWARNING %d sites snps not in eigenstrat [are many on the X chr?]' % not_in_eigen)
 
-    # print('results', len(results['sites']), results['sites'])
-    if len(results['sites']) == 0:
-        print('\nERROR: No reads overlapping sites.')
-        if args.limit is not None: print(' If using --limit, try using a larger number?')
-        sys.exit()
+        for indID in all_inds:
+            _,_,indID_pop = all_inds[indID]
+        
+            print('\n\nProcessing individual:', indID, file=sys.stderr)
+
+            results = init_results()
+
+            call_bases_eigen(eigen,
+                             sites = sites,
+                             # third = third,
+                             results = results,
+                             indID = indID)
+
+            # print('results', len(results['sites']), results['sites'])
+            if len(results['sites']) == 0:
+                print('\nERROR: No SNPs in eigenstrat overlapping our sites for this individual.')
+                if args.limit is not None: print(' If using --limit, try using a larger number?')
+                sys.exit()
+                pass
+            
+            print('\nReporting basic statistics..', file=sys.stderr)
+            report_stats(args, sites, site_category_counts, results, indID = indID)
+            
+            pass
         pass
-    
-    print('\nReporting basic statistics..', file=sys.stderr)
-    report_stats(args, sites, site_category_counts, results)
 
     
     ######
