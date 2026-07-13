@@ -33,7 +33,7 @@ time python3 /mnt/expressions/benjamin_vernot/soil_capture_2017/ancient_animal_d
 
 This is still a work in progress.
 
-For coverage based analyses, example command line runs:
+For coverage based analyses on 1240k capture data, example command line runs:
 
 ```
 time python3 bin/mismapping.py \
@@ -52,7 +52,9 @@ time python3 bin/mismapping.py \
 ```
 
 
-For hominin diagnostic position based analyses:
+For hominin diagnostic position based analyses on shotgun data:
+
+The first command looks for ancestral alleles at hominin-diagnostic positions. The second command uses coverage by mammalian diversity bins.
 
 (still have to modify this sites file so that it has the mam_div_cat column, with appropriate categories - so the coverage estimates will not be exactly correct).
  
@@ -61,7 +63,14 @@ time python3 bin/mismapping.py \
                  --bam data/test_bams/A34692.pendant.uniq.L35MQ25.s0.1.bam \
                  --sites data/sites/hominin_derived_sites.fixcats.with_third.txt \
                  --minmq 25 \
-                 -use-cats --categories b_3.mod --strategy coverage likelihood   
+                 --strategy derived-alleles
+
+time python3 bin/mismapping.py \
+                 --bam data/test_bams/A34692.pendant.uniq.L35MQ25.s0.1.bam \
+                 --sites data/sites/hominin_derived_sites.fixcats.with_third.txt \
+                 --minmq 25 \
+                 -use-cats --categories b_3.mod --strategy coverage
+
 ```
 
 ### Doing basic popgen stuff with Poseiden
