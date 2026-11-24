@@ -755,19 +755,20 @@ def report_stats(args, sites, site_category_counts, results, indID = None):
             all_cats = [(str(x),) for x in range(-1,31)] + [('30+',), ('no-msa',), ('ensembl-fail',)]
             all_cats = [(str(x),) for x in range(-1,31)] + [('30+',), ('only-primate-msa',), ('ensembl-filter',)]
             baseline_cats = [(x,) for x in args.cov_baseline]
+
+            ## TODO - THIS FAILS IF THERE'S LITERALLY NO DNA, I THINK?
+            ## average coverage in "baseline" categories
+            print([(site_category_counts[category], category) for category in baseline_cats])
+            baseline_cov1 = sum([site_results[category]['n_reads'] / site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0]) / \
+                sum(site_category_counts[category] > 0 for category in baseline_cats)
+            ## weighted average coverage in "baseline" categories
+            baseline_cov1_w = sum([site_results[category]['n_reads'] for category in baseline_cats if site_category_counts[category] > 0]) / \
+                sum([site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0])
+            print('baseline-cov', baseline_cov1)
+            print('baseline-cov-w', baseline_cov1_w)
+
             pass
-
-        ## TODO - THIS FAILS IF THERE'S LITERALLY NO DNA, I THINK?
-        ## average coverage in "baseline" categories
-        print([(site_category_counts[category], category) for category in baseline_cats])
-        baseline_cov1 = sum([site_results[category]['n_reads'] / site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0]) / \
-            sum(site_category_counts[category] > 0 for category in baseline_cats)
-        ## weighted average coverage in "baseline" categories
-        baseline_cov1_w = sum([site_results[category]['n_reads'] for category in baseline_cats if site_category_counts[category] > 0]) / \
-            sum([site_category_counts[category] for category in baseline_cats if site_category_counts[category] > 0])
-        print('baseline-cov', baseline_cov1)
-        print('baseline-cov-w', baseline_cov1_w)
-
+        
         n_reads_faunal = 0
         n_reads_faunal_w = 0
         n_reads_total = 0
@@ -805,15 +806,16 @@ def report_stats(args, sites, site_category_counts, results, indID = None):
                   sep='\t')
             pass
 
-        print('cov-estimates', int(n_reads_faunal), n_reads_total, n_reads_faunal / n_reads_total)
-        print('cov-estimates-w', int(n_reads_faunal_w), n_reads_total, n_reads_faunal_w / n_reads_total)
+        print('cov-estimates', int(n_reads_faunal), n_reads_total, n_reads_faunal / n_reads_total, indID if indID is not None else '.', sep='\t')
+        print('cov-estimates-w', int(n_reads_faunal_w), n_reads_total, n_reads_faunal_w / n_reads_total, indID if indID is not None else '.', sep='\t')
 
         pass
 
     print('\n')
-    print('ALLSITES', '\t'.join(all_stats_keys), sep='\t')
+    print('ALLSITES', '\t'.join(all_stats_keys), indID if indID is not None else '.', sep='\t')
     print('ALLSITES',
           '\t'.join(str(sum_stats[k]) for k in all_stats_keys),
+          indID if indID is not None else '.',
           sep='\t')
 
     ######
@@ -826,8 +828,8 @@ def report_stats(args, sites, site_category_counts, results, indID = None):
     sum_stats = {k: sum(d[k] for d in config_results.values() if k in d) for k in all_stats_keys}
 
     print('\n')
-    print('ALLELES', '\t'.join(all_stats_keys), sep='\t')
-    print('ALLELES', '\t'.join(str(sum_stats[k]) for k in all_stats_keys), sep='\t')
+    print('ALLELES', '\t'.join(all_stats_keys), indID if indID is not None else '.', sep='\t')
+    print('ALLELES', '\t'.join(str(sum_stats[k]) for k in all_stats_keys), indID if indID is not None else '.', sep='\t')
 
     if 'full_report_str' not in results:
         results['full_report_str'] = ''
@@ -879,10 +881,12 @@ def report_stats(args, sites, site_category_counts, results, indID = None):
             '\t' + str(h_a1a2) + \
             '\t' + str(h_a1a2 / sum(sim_results[spc]['anc_base'] + sim_results[spc]['der_base'] for spc in sim_results)) + \
             '\t' + 'meth:' + str(args.lik_method)
-        
+        pass
 
 
-    pass
+    sys.stdout.flush()
+
+    return
 
 
 
